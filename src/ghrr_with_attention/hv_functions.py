@@ -26,7 +26,25 @@ def mult(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.matmul(a, b)
 
 def bundle_grouped(data: np.ndarray, *, axis: tuple[int, ...] | None = None) -> np.ndarray:
-    return normalize(add_grouped(data, axis=axis))
+    v = add_grouped(data, axis=axis)
+    return normalize(v)
 
 def bind(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    return normalize(mult(a, b))
+    v = mult(a, b)
+    return normalize(v)
+
+def query_from_encoded(positional_encodings: np.ndarray, encodings: np.ndarray) -> np.ndarray:
+    v1 = mult(positional_encodings, encodings)
+    v2 = add_grouped(v1)
+    return normalize(v2)
+
+def key_from_encoded(encodings1: np.ndarray, encodings2: np.ndarray, positions2: np.ndarray) -> np.ndarray:
+    v1 = mult(encodings2, positions2)
+    v2 = np.conjugate(np.transpose(v1, (0, 2, 1)))
+    v3 = mult(v2, encodings1)
+    return normalize(v3)
+
+def value_from_encoded(positional_encodings: np.ndarray, encodings: np.ndarray) -> np.ndarray:
+    v1 = mult(positional_encodings, encodings)
+    v2 = add_grouped(v1)
+    return normalize(v2)
