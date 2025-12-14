@@ -1,0 +1,6 @@
+numpy
+torch
+torch_geometric
+networkx
+types-networkx
+mypy
