@@ -1,6 +1,10 @@
-import numpy as np
+import torch
 import unittest
 
-def np_singular_value(data: np.ndarray, *, axis: tuple[int, ...]) -> bool:
-    element_wise = np.isclose(np.max(data, axis=axis), np.min(data, axis=axis), equal_nan=True)
-    return np.all(element_wise)
+def torch_singular_value(data: torch.Tensor, *, data_dims: int) -> bool:
+    dims = len(data.shape)
+    start_dim = dims - data_dims
+    
+    flat = data.flatten(start_dim=start_dim)
+    
+    return (flat == flat[..., 0:1]).all()

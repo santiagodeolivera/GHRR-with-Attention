@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ghrr_with_attention"
 version = "0.1.0"
-dependencies = ["numpy"]
+dependencies = ["torch"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
