@@ -1,18 +1,30 @@
 import torch
 import torch.nn.functional as F
-from ghrr_with_attention.utils import value_or
+from ghrr_with_attention.utils import value_or, not_none
 from typing import overload
 from functools import reduce
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
-# data: Batch of HVs
-# returns: Batch of HVs
+# data: (x)D batch of HVs
+# returns: (x)D batch of HVs
 def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
     data_size = reduce(lambda a, b: a * b, data.shape[-3:])
     view = data.view(-1, data_size)
-    return F.normalize(data, out=out)
+    
+    real_out: torch.Tensor
+    if not_none(out):
+        real_out = out
+    else:
+        real_out = torch.empty_like(data)
+    real_out_view = real_out.view(-1, data_size)
+    
+    F.normalize(view, p=2, dim=1, out=real_out_view)
+    return real_out
 
+# data: (x)D batch of HVs
+# dims: Dimensions to sum
+# returns: (x-dims.len)D batch of HVs
 def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
     dim_: tuple[int, ...] = value_or(dim, tuple(range(len(data.shape) - 3)))
 
@@ -23,14 +35,23 @@ def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: 
     
     return torch.sum(data, dim=dim_, out=out)
 
+# a: (x)D batch of HVs
+# b: (x)D batch of HVs
+# returns: (x)D batch of HVs
 def mult(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
     return torch.matmul(a, b, out=out)
 
+# data: (x)D batch of HVs
+# dims: Dimensions to sum
+# returns: (x-dims.len)D batch of HVs
 def bundle_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
     v1 = add_grouped(data, dim=dim, out=out)
     normalize(v1, out=v1)
     return v1
 
+# a: (x)D batch of HVs
+# b: (x)D batch of HVs
+# returns: (x)D batch of HVs
 def bind(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
     v1 = mult(a, b, out=out)
     normalize(v1, out=v1)
