@@ -57,18 +57,18 @@ def bind(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -
     normalize(v1, out=v1)
     return v1
 
-def query_from_encoded(positional_encodings: np.ndarray, encodings: np.ndarray) -> np.ndarray:
+def query_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
     v2 = add_grouped(v1)
     return normalize(v2)
 
-def key_from_encoded(encodings1: np.ndarray, encodings2: np.ndarray, positions2: np.ndarray) -> np.ndarray:
+def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor) -> torch.Tensor:
     v1 = mult(encodings2, positions2)
-    v2 = np.conjugate(np.transpose(v1, (0, 2, 1)))
+    v2 = v1.adjoint()
     v3 = mult(v2, encodings1)
     return normalize(v3)
 
-def value_from_encoded(positional_encodings: np.ndarray, encodings: np.ndarray) -> np.ndarray:
+def value_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
     v2 = add_grouped(v1)
     return normalize(v2)
