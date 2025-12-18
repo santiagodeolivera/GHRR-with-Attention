@@ -1,3 +1,4 @@
+import time
 from typing import TypeVar, TypeGuard, Callable
 
 # TODO: Find out where these functions should be located

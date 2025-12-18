@@ -1,3 +1,5 @@
+from typing import Callable
+
 class Experiment:
     fn: Callable[[], None]
 
@@ -6,6 +8,3 @@ class Experiment:
     
     def execute(self):
         self.fn()
-
-def experiments() -> dict[str, Experiment]:
-    return dict()
