@@ -1,37 +1,61 @@
-import numpy as np
-from ghrr_with_attention.utils import value_or
+import torch
+import torch.nn.functional as F
+from ghrr_with_attention.utils import value_or, not_none
+from typing import overload
+from functools import reduce
 
-# HVs are represented as np.ndarray instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
+# HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
-def norm(data: np.ndarray) -> np.ndarray:
-    dims = len(data.shape)
-    norm = np.linalg.vector_norm(data, axis=(dims-3, dims-2, dims-1))
-    return norm
+# data: (x)D batch of HVs
+# returns: (x)D batch of HVs
+def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
+    data_size = reduce(lambda a, b: a * b, data.shape[-3:])
+    view = data.view(-1, data_size)
+    
+    real_out: torch.Tensor
+    if not_none(out):
+        real_out = out
+    else:
+        real_out = torch.empty_like(data)
+    real_out_view = real_out.view(-1, data_size)
+    
+    F.normalize(view, p=2, dim=1, out=real_out_view)
+    return real_out
 
-def normalize(data: np.ndarray) -> np.ndarray:
-    norm_ = norm(data)[:, np.newaxis, np.newaxis, np.newaxis]
-    return np.divide(data, norm_, out=np.zeros(data.shape, dtype=np.complex128), where=norm != 0)
-
-def add_grouped(data: np.ndarray, *, axis: tuple[int, ...] | None = None) -> np.ndarray:
-    axis_: tuple[int, ...] = value_or(axis, tuple(range(len(data.shape) - 3)))
+# data: (x)D batch of HVs
+# dims: Dimensions to sum
+# returns: (x-dims.len)D batch of HVs
+def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
+    dim_: tuple[int, ...] = value_or(dim, tuple(range(len(data.shape) - 3)))
 
     for n in range(1, 4):
-        axis_id = len(data.shape) - n
-        if n in axis_:
-            raise ValueError(F"Axis {axis_id} is internal to the structure of HVs")
+        dim_id = len(data.shape) - n
+        if dim_id in dim_:
+            raise ValueError(F"Dimension {dim_id} is internal to the structure of HVs")
     
-    return np.sum(data, axis=axis_)
+    return torch.sum(data, dim=dim_, out=out)
 
-def mult(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    return np.matmul(a, b)
+# a: (x)D batch of HVs
+# b: (x)D batch of HVs
+# returns: (x)D batch of HVs
+def mult(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
+    return torch.matmul(a, b, out=out)
 
-def bundle_grouped(data: np.ndarray, *, axis: tuple[int, ...] | None = None) -> np.ndarray:
-    v = add_grouped(data, axis=axis)
-    return normalize(v)
+# data: (x)D batch of HVs
+# dims: Dimensions to sum
+# returns: (x-dims.len)D batch of HVs
+def bundle_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
+    v1 = add_grouped(data, dim=dim, out=out)
+    normalize(v1, out=v1)
+    return v1
 
-def bind(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    v = mult(a, b)
-    return normalize(v)
+# a: (x)D batch of HVs
+# b: (x)D batch of HVs
+# returns: (x)D batch of HVs
+def bind(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
+    v1 = mult(a, b, out=out)
+    normalize(v1, out=v1)
+    return v1
 
 def query_from_encoded(positional_encodings: np.ndarray, encodings: np.ndarray) -> np.ndarray:
     v1 = mult(positional_encodings, encodings)
