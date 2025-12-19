@@ -16,6 +16,7 @@ from experiments import Experiment
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("-f", "--force", action="store_true")
+    parser.add_argument("--no-cpu", action="store_true")
     return parser
 
 D = 10000
@@ -58,6 +59,10 @@ def execute(raw_args: Iterable[str]) -> None:
     args = get_parser().parse_args(raw_args)
     root = Path(__file__).parent
     
+    if args.no_cpu and tensor_device.type != "cuda":
+        print("GPU not available. Exiting")
+        return
+    
     hvs_root = root / "hvs"
     if hvs_root.exists() and any(hvs_root.iterdir()) and not args.force:
         print("HVs already printed, and --force not activated")
@@ -68,7 +73,6 @@ def execute(raw_args: Iterable[str]) -> None:
     dataset_root.mkdir(parents=True, exist_ok=True)
     dataset: Iterable[Data] = TUDataset(root=str(dataset_root), name="MUTAG")
     
-    # Obtain graphs
     graphs_with_labels = tuple(graph_to_networkx(d) for d in dataset)
     
     position_encodings = get_position_encodings()
@@ -114,7 +118,7 @@ def execute(raw_args: Iterable[str]) -> None:
         edges2: torch.Tensor = torch.gather(key_encodings_2, 0, edge_indices2[..., None, None, None])
         
         key_hv = hv_functions.key_from_encoded(edges1, edges2, position_encodings)
-        ctx1.print(f"Graph {g_id} - End calculating key")
+        ctx1.print(f"Graph {g_id} - Finish calculating key")
         
         ctx1.print(f"Graph {g_id} - Start calculating result")
         print(query_hv.shape)
