@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from ghrr_with_attention.utils import value_or, not_none
+from ghrr_with_attention.utils import value_or, not_none, print_tensor_struct
 from typing import overload
 from functools import reduce
 
@@ -28,37 +28,42 @@ def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.T
 # data: (x)D batch of HVs
 # dims: Dimensions to sum
 # returns: (x-dims.len)D batch of HVs
-def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
-    dim_: tuple[int, ...] = value_or(dim, tuple(range(len(data.shape) - 3)))
+def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | int | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
+    if dim is None: dim = tuple(range(len(data.shape) - 3))
+    if type(dim) == int: dim = (dim,)
 
     for n in range(1, 4):
         dim_id = len(data.shape) - n
-        if dim_id in dim_ or -n in dim_:
+        if dim_id in dim or -n in dim:
             raise ValueError(F"Dimension {dim_id} (-{n}) is internal to the structure of HVs")
     
-    return torch.sum(data, dim=dim_, out=out)
+    return torch.sum(data, dim=dim, out=out)
 
 # a: (x)D batch of HVs
 # b: (x)D batch of HVs
 # returns: (x)D batch of HVs
 def mult(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
-    return torch.matmul(a, b, out=out)
+    try:
+        return torch.matmul(a, b, out=out)
+    except Exception as e:
+        v1 = print_tensor_struct(out) if out is not None else None
+        raise Exception(f"Exception occurred ({print_tensor_struct(a)} * {print_tensor_struct(b)}, out={v1})") from e
 
 # data: (x)D batch of HVs
 # dims: Dimensions to sum
 # returns: (x-dims.len)D batch of HVs
 def bundle_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
     v1 = add_grouped(data, dim=dim, out=out)
-    normalize(v1, out=v1)
-    return v1
+    v2 = normalize(v1)
+    return v2
 
 # a: (x)D batch of HVs
 # b: (x)D batch of HVs
 # returns: (x)D batch of HVs
 def bind(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
     v1 = mult(a, b, out=out)
-    normalize(v1, out=v1)
-    return v1
+    v2 = normalize(v1)
+    return v2
 
 # positional_encodings: (x)D batch of HVs
 # encodings: (x)D batch of HVs
@@ -66,7 +71,8 @@ def bind(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -
 def query_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
     v2 = add_grouped(v1, dim=-4)
-    return normalize(v2)
+    v3 = normalize(v2)
+    return v3
 
 # encodings1: (x)D batch of HVs
 # encodings2: (x)D batch of HVs
@@ -77,7 +83,8 @@ def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positio
     v2 = v1.adjoint()
     v3 = mult(v2, encodings1)
     v4 = add_grouped(v3, dim=-4)
-    return normalize(v4)
+    v5 = normalize(v4)
+    return v5
 
 # positional_encodings: (x)D batch of HVs
 # encodings: (x)D batch of HVs
@@ -85,4 +92,6 @@ def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positio
 def value_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
     v2 = add_grouped(v1, dim=-4)
-    return normalize(v2)
+    v3 = normalize(v2)
+    return v3
+

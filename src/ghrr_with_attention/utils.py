@@ -1,4 +1,5 @@
 import time
+import torch
 from typing import TypeVar, TypeGuard, Callable
 
 # TODO: Find out where these functions should be located
@@ -55,6 +56,18 @@ def commutative_cantor_pairing(a: int, b: int) -> int:
     b = b * 2 if b >= 0 else b * -2 - 1
     return (a + b) * (a + b + 1) // 2 + b
 
+def log(value: T, msg: str | None = None, show: bool | Callable[[T], Any] = False) -> T:
+    if show == True:
+        print(f"{msg}: {value}" if msg is not None else value)
+    elif show == False:
+        if msg is not None:
+            print(msg)
+    else:
+        v1 = show(value)
+        print(f"{msg}: {v1}" if msg is not None else v1)
+    
+    return value
+
 class CheckpointContext:
     name: str
     start_time: int
@@ -77,9 +90,14 @@ class CheckpointContext:
         print()
         print(f"Checkpoint context: {self.name}")
         print(diff_from_last, "since last checkpoint")
-        print(diff_from_start, f"since checkpoint context definition")
+        print(diff_from_start, "since checkpoint context definition")
         print(msg)
 
     def log(self, msg: str, value: T) -> T:
         self.print(msg)
         return value
+
+def print_tensor_struct(t: torch.Tensor) -> str:
+    v1 = t.dtype
+    v2 = ", ".join(str(x) for x in t.shape)
+    return f"{v1}[{v2}]"

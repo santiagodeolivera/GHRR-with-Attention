@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import networkx as nx
 from ghrr_with_attention import device as tensor_device
-from ghrr_with_attention.utils import not_none, commutative_cantor_pairing, CheckpointContext
+from ghrr_with_attention.utils import not_none, commutative_cantor_pairing, CheckpointContext, log
 from ghrr_with_attention.hv_memory import get_random_hvs
 from ghrr_with_attention import hv_functions
 from torch_geometric.data import Data
@@ -45,12 +45,16 @@ def graph_to_networkx(d: Data) -> tuple[int, nx.Graph]:
     return (label, G)
 
 def get_position_encodings() -> torch.Tensor:
-    v1 = np.fromfunction(
-        lambda n, depth, row, col: np.where((n == row) & (n == col), 1, 0),
-        shape=(m, D, m, m),
-        dtype=np.float32
-    )
-    return torch.from_numpy(v1).to(tensor_device)
+    def get_range_tensor(upper_limit: int) -> torch.Tensor:
+        return torch.tensor(tuple(range(upper_limit)), dtype=torch.int8, device=tensor_device)
+    
+    def get_single_tensor(n: float) -> torch.Tensor:
+        return torch.tensor(n, dtype=torch.float32, device=tensor_device)
+        
+    v1 = get_range_tensor(m)
+    n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
+    v3 = torch.where((n == row) & (n == col), get_single_tensor(1.0), get_single_tensor(0.0))
+    return v3[:, None, :, :].expand(m, D, m, m)
 
 def get_encodings(path: Path) -> torch.Tensor:
     return get_random_hvs(D, m, path, m, device=tensor_device)
@@ -64,9 +68,6 @@ def execute(raw_args: Iterable[str]) -> None:
         return
     
     hvs_root = root / "hvs"
-    if hvs_root.exists() and any(hvs_root.iterdir()) and not args.force:
-        print("HVs already printed, and --force not activated")
-        return
     hvs_root.mkdir(parents=True, exist_ok=True)
     
     dataset_root = root / "tudataset"
@@ -89,6 +90,17 @@ def execute(raw_args: Iterable[str]) -> None:
     ctx3 = CheckpointContext(f"Graph - all graphs", msg="Start")
     for g_id, (_, graph) in enumerate(graphs_with_labels):
         ctx2.print(f"Graph {g_id} - Start")
+        
+        if (hvs_root / f"{g_id}.pt").exists():
+            if args.force:
+                ctx1.print(f"Graph {g_id} already exists, but --force is activated. Overriding")
+            else:
+                ctx1.print(f"Graph {g_id} already exists, and --force not activated. Skipping")
+                continue
+        
+        ctx1.print(f"Graph {g_id} - Start emptying GPU cache")
+        torch.cuda.empty_cache()
+        ctx1.print(f"Graph {g_id} - Finish emptying GPU cache")
         
         node_max_id = graph.number_of_nodes()
         
@@ -114,10 +126,11 @@ def execute(raw_args: Iterable[str]) -> None:
             edge_indices1[i] = u
             edge_indices2[i] = v
         
-        edges1: torch.Tensor = torch.gather(key_encodings_1, 0, edge_indices1[..., None, None, None])
-        edges2: torch.Tensor = torch.gather(key_encodings_2, 0, edge_indices2[..., None, None, None])
+        edges1: torch.Tensor = torch.gather(key_encodings_1, 0, edge_indices1[..., None, None, None].expand(-1, D, m, m))
+        edges2: torch.Tensor = log(torch.gather(log(key_encodings_2, "DEBUG A", lambda v: v.shape), 0, log(edge_indices2[..., None, None, None].expand(-1, D, m, m), "DEBUG B", lambda v: v.shape)), "DEBUG 0", show=lambda v: v.shape)
+        key_positions: torch.Tensor = torch.gather(position_encodings, 0, edge_indices2[..., None, None, None].expand(-1, D, m, m))
         
-        key_hv = hv_functions.key_from_encoded(edges1, edges2, position_encodings)
+        key_hv = hv_functions.key_from_encoded(edges1, edges2, key_positions)
         ctx1.print(f"Graph {g_id} - Finish calculating key")
         
         ctx1.print(f"Graph {g_id} - Start calculating result")
@@ -136,7 +149,10 @@ def execute(raw_args: Iterable[str]) -> None:
         ctx1.print(f"Graph {g_id} - Finish saving result")
 
         ctx2.print(f"Graph {g_id} - Finish")
-    ctx3.print("End")
+
+    ctx3.print(f"Final push - Start emptying GPU cache")
+    torch.cuda.empty_cache()
+    ctx3.print(f"Final push - Finish emptying GPU cache")
 
 experiment: Experiment = Experiment(fn = execute)
 
