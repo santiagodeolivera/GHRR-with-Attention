@@ -17,13 +17,15 @@ def main() -> None:
     args = get_parser().parse_args()
 
     experiment_id: str = args.experiment_id
+    rest: Iterable[str] = args.rest
+    
     experiment: Experiment | None = get_experiments().get(experiment_id, None)
     
     if not not_none(experiment):
         v1 = json_dumps(experiment_id)
         print(f"Invalid experiment id: {v1}")
     
-    experiment.execute()
+    experiment.execute(rest)
 
 if __name__ == "__main__":
     main()

@@ -1,10 +1,10 @@
-from typing import Callable
+from typing import Callable, Iterable
 
 class Experiment:
-    fn: Callable[[], None]
+    fn: Callable[[Iterable[str]], None]
 
-    def __init__(self, fn: Callable[[], None]):
+    def __init__(self, fn: Callable[[Iterable[str]], None]):
         self.fn = fn
     
-    def execute(self):
-        self.fn()
+    def execute(self, args: Iterable[str]):
+        self.fn(args)

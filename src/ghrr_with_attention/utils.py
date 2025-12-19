@@ -69,10 +69,10 @@ class CheckpointContext:
         if msg is not None:
             self.print(msg)
         
-    def print(msg: str):
+    def print(self, msg: str):
         current_time = time.time_ns()
-        diff_from_start = calc_time_difference(self.start_time, self.current_time)
-        diff_from_last = calc_time_difference(self.last_time, self.current_time)
+        diff_from_start = calc_time_difference(self.start_time, current_time)
+        diff_from_last = calc_time_difference(self.last_time, current_time)
         self.last_time = current_time
         print()
         print(f"Checkpoint context: {self.name}")
@@ -80,6 +80,6 @@ class CheckpointContext:
         print(diff_from_start, f"since checkpoint context definition")
         print(msg)
 
-    def log(msg: str, value: T) -> T:
+    def log(self, msg: str, value: T) -> T:
         self.print(msg)
         return value
