@@ -28,6 +28,7 @@ def calc_time_difference(before: int, after: int):
 
     return f"{time_difference_int}.{time_difference_dec:02} s"
 
+"""
 start_time = time.time_ns()
 last_time = start_time
 def checkpoint_print(*args, **kwargs):
@@ -46,3 +47,39 @@ def checkpoint_print(*args, **kwargs):
 def checkpoint_log(msg: str, value: T) -> T:
     checkpoint_print(msg)
     return value
+"""
+
+def commutative_cantor_pairing(a: int, b: int) -> int:
+    if a > b: (a, b) = (b, a)
+    a = a * 2 if a >= 0 else a * -2 - 1
+    b = b * 2 if b >= 0 else b * -2 - 1
+    return (a + b) * (a + b + 1) // 2 + b
+
+class CheckpointContext:
+    name: str
+    start_time: int
+    last_time: int
+    
+    def __init__(self, name: str, *, msg: str | None = None):
+        self.start_time = time.time_ns()
+        self.last_time = self.start_time
+        
+        self.name = name
+        
+        if msg is not None:
+            self.print(msg)
+        
+    def print(msg: str):
+        current_time = time.time_ns()
+        diff_from_start = calc_time_difference(self.start_time, self.current_time)
+        diff_from_last = calc_time_difference(self.last_time, self.current_time)
+        self.last_time = current_time
+        print()
+        print(f"Checkpoint context: {self.name}")
+        print(diff_from_last, "since last checkpoint")
+        print(diff_from_start, f"since checkpoint context definition")
+        print(msg)
+
+    def log(msg: str, value: T) -> T:
+        self.print(msg)
+        return value

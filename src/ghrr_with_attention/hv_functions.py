@@ -6,6 +6,9 @@ from functools import reduce
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
+# TODO: Make tensor_from_function function, similar to np.fromfunction
+# def hv_from_memory
+
 # data: (x)D batch of HVs
 # returns: (x)D batch of HVs
 def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
@@ -30,8 +33,8 @@ def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: 
 
     for n in range(1, 4):
         dim_id = len(data.shape) - n
-        if dim_id in dim_:
-            raise ValueError(F"Dimension {dim_id} is internal to the structure of HVs")
+        if dim_id in dim_ or -n in dim_:
+            raise ValueError(F"Dimension {dim_id} (-{n}) is internal to the structure of HVs")
     
     return torch.sum(data, dim=dim_, out=out)
 
@@ -57,18 +60,29 @@ def bind(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -
     normalize(v1, out=v1)
     return v1
 
+# positional_encodings: (x)D batch of HVs
+# encodings: (x)D batch of HVs
+# returns: (x-1)D batch of HVs
 def query_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
-    v2 = add_grouped(v1)
+    v2 = add_grouped(v1, dim=-4)
     return normalize(v2)
 
+# encodings1: (x)D batch of HVs
+# encodings2: (x)D batch of HVs
+# positions2: (x)D batch of HVs
+# returns: (x-1)D batch of HVs
 def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor) -> torch.Tensor:
     v1 = mult(encodings2, positions2)
     v2 = v1.adjoint()
     v3 = mult(v2, encodings1)
-    return normalize(v3)
+    v4 = add_grouped(v3, dim=-4)
+    return normalize(v4)
 
+# positional_encodings: (x)D batch of HVs
+# encodings: (x)D batch of HVs
+# returns: (x-1)D batch of HVs
 def value_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
-    v2 = add_grouped(v1)
+    v2 = add_grouped(v1, dim=-4)
     return normalize(v2)
