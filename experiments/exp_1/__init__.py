@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import networkx as nx
 from ghrr_with_attention import device as tensor_device
-from ghrr_with_attention.utils import not_none, commutative_cantor_pairing, CheckpointContext, log
+from ghrr_with_attention.utils import not_none, commutative_cantor_pairing, CheckpointContext
 from ghrr_with_attention.hv_memory import get_random_hvs
 from ghrr_with_attention import hv_functions
 from torch_geometric.data import Data
@@ -127,7 +127,7 @@ def execute(raw_args: Iterable[str]) -> None:
             edge_indices2[i] = v
         
         edges1: torch.Tensor = torch.gather(key_encodings_1, 0, edge_indices1[..., None, None, None].expand(-1, D, m, m))
-        edges2: torch.Tensor = log(torch.gather(log(key_encodings_2, "DEBUG A", lambda v: v.shape), 0, log(edge_indices2[..., None, None, None].expand(-1, D, m, m), "DEBUG B", lambda v: v.shape)), "DEBUG 0", show=lambda v: v.shape)
+        edges2: torch.Tensor = torch.gather(key_encodings_2, 0, edge_indices2[..., None, None, None].expand(-1, D, m, m))
         key_positions: torch.Tensor = torch.gather(position_encodings, 0, edge_indices2[..., None, None, None].expand(-1, D, m, m))
         
         key_hv = hv_functions.key_from_encoded(edges1, edges2, key_positions)

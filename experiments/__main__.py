@@ -24,6 +24,7 @@ def main() -> None:
     if not not_none(experiment):
         v1 = json_dumps(experiment_id)
         print(f"Invalid experiment id: {v1}")
+        return
     
     experiment.execute(rest)
 

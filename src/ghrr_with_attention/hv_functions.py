@@ -1,13 +1,15 @@
 import torch
 import torch.nn.functional as F
 from ghrr_with_attention.utils import value_or, not_none, print_tensor_struct
-from typing import overload
+from typing import Callable
 from functools import reduce
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
-# TODO: Make tensor_from_function function, similar to np.fromfunction
-# def hv_from_memory
+def torch_fromfunction(fn: Callable[..., torch.Tensor], shape: tuple[int, ...], *, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+    tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
+    tensors2 = torch.meshgrid(*tensors1, indexing="ij")
+    return fn(*tensors2).to(dtype)
 
 # data: (x)D batch of HVs
 # returns: (x)D batch of HVs

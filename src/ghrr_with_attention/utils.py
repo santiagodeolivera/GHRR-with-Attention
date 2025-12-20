@@ -29,32 +29,20 @@ def calc_time_difference(before: int, after: int):
 
     return f"{time_difference_int}.{time_difference_dec:02} s"
 
-"""
-start_time = time.time_ns()
-last_time = start_time
-def checkpoint_print(*args, **kwargs):
-    global start_time
-    global last_time
-    
-    current_time = time.time_ns()
-    diff_from_start = calc_time_difference(start_time, current_time)
-    diff_from_last = calc_time_difference(last_time, current_time)
-    last_time = current_time
-    print()
-    print(diff_from_last, "since last checkpoint")
-    print(diff_from_start, "since program start")
-    print(*args, **kwargs)
+def torch_cantor_pairing(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    a = torch.where(a >= 0, a * 2, a * (-2) - 1)
+    b = torch.where(b >= 0, b * 2, b * (-2) - 1)
+    v1 = (a + b) * (a + b + 1)
+    return torch.div(v1, 2, rounding_mode="trunc") + b
 
-def checkpoint_log(msg: str, value: T) -> T:
-    checkpoint_print(msg)
-    return value
-"""
-
-def commutative_cantor_pairing(a: int, b: int) -> int:
-    if a > b: (a, b) = (b, a)
+def cantor_pairing(a: int, b: int) -> int:
     a = a * 2 if a >= 0 else a * -2 - 1
     b = b * 2 if b >= 0 else b * -2 - 1
     return (a + b) * (a + b + 1) // 2 + b
+
+def commutative_cantor_pairing(a: int, b: int) -> int:
+    if a > b: (a, b) = (b, a)
+    return cantor_pairing(a, b)
 
 def log(value: T, msg: str | None = None, show: bool | Callable[[T], Any] = False) -> T:
     if show == True:
