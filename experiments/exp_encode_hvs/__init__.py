@@ -34,15 +34,13 @@ Assumptions:
 def graph_is_directed(G: nx.Graph | nx.DiGraph) -> TypeGuard[nx.DiGraph]:
     return nx.is_directed(G)
 
-def graph_to_networkx(d: Data) -> tuple[int, nx.Graph]:
+def graph_to_networkx(d: Data) -> nx.Graph:
     G: nx.Graph | nx.DiGraph = to_networkx_inner(d, to_undirected=True)
 
     if graph_is_directed(G):
         raise ValueError("Unexpected error")
-    
-    label: int = int(d.y.item())
 
-    return (label, G)
+    return G
 
 def get_position_encodings() -> torch.Tensor:
     def get_range_tensor(upper_limit: int) -> torch.Tensor:
@@ -61,24 +59,24 @@ def get_encodings(path: Path) -> torch.Tensor:
 
 def execute(raw_args: Iterable[str]) -> None:
     args = get_parser().parse_args(raw_args)
-    root = Path(__file__).parent
+    root = Path(__file__) / "../.."
     
     if args.no_cpu and tensor_device.type != "cuda":
         print("GPU not available. Exiting")
         return
     
-    hvs_root = root / "hvs"
+    hvs_root = root / "mutag_hvs"
     hvs_root.mkdir(parents=True, exist_ok=True)
     
     dataset_root = root / "tudataset"
     dataset_root.mkdir(parents=True, exist_ok=True)
     dataset: Iterable[Data] = TUDataset(root=str(dataset_root), name="MUTAG")
     
-    graphs_with_labels = tuple(graph_to_networkx(d) for d in dataset)
+    graphs = tuple(graph_to_networkx(d) for d in dataset)
     
     position_encodings = get_position_encodings()
     
-    encodings_root = root / "encodings"
+    encodings_root = root / "mutag_base_encodings"
     encodings_root.mkdir(parents=True, exist_ok=True)
     query_encodings = get_encodings(encodings_root / "_query.pt")
     key_encodings_1 = get_encodings(encodings_root / "_key1.pt")
@@ -88,7 +86,8 @@ def execute(raw_args: Iterable[str]) -> None:
     ctx1 = CheckpointContext(f"Graph - individual parts")
     ctx2 = CheckpointContext(f"Graph - whole graph")
     ctx3 = CheckpointContext(f"Graph - all graphs", msg="Start")
-    for g_id, (_, graph) in enumerate(graphs_with_labels):
+    
+    for g_id, graph in enumerate(graphs):
         ctx2.print(f"Graph {g_id} - Start")
         
         if (hvs_root / f"{g_id}.pt").exists():
@@ -134,9 +133,6 @@ def execute(raw_args: Iterable[str]) -> None:
         ctx1.print(f"Graph {g_id} - Finish calculating key")
         
         ctx1.print(f"Graph {g_id} - Start calculating result")
-        print(query_hv.shape)
-        print(key_hv.shape)
-        print(value_hv.shape)
         v1: torch.Tensor = key_hv.adjoint()
         v2: torch.Tensor = hv_functions.mult(query_hv, v1)
         v3: torch.Tensor = v2.real
@@ -147,7 +143,7 @@ def execute(raw_args: Iterable[str]) -> None:
         ctx1.print(f"Graph {g_id} - Start saving result")
         torch.save(res, hvs_root / f"{g_id}.pt")
         ctx1.print(f"Graph {g_id} - Finish saving result")
-
+    
         ctx2.print(f"Graph {g_id} - Finish")
 
     ctx3.print(f"Final push - Start emptying GPU cache")

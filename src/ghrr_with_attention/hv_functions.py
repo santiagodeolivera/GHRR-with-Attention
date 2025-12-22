@@ -6,10 +6,21 @@ from functools import reduce
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
-def torch_fromfunction(fn: Callable[..., torch.Tensor], shape: tuple[int, ...], *, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+def torch_fromfunction(              \
+    fn: Callable[..., torch.Tensor], \
+    shape: tuple[int, ...],          \
+    *,                               \
+    device: torch.device,            \
+    dtype: torch.dtype | None = None \
+) -> torch.Tensor:
     tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
     tensors2 = torch.meshgrid(*tensors1, indexing="ij")
-    return fn(*tensors2).to(dtype)
+    
+    res = fn(*tensors2)
+    if dtype is not None:
+        res = res.to(dtype)
+    
+    return res
 
 # data: (x)D batch of HVs
 # returns: (x)D batch of HVs
@@ -50,22 +61,6 @@ def mult(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -
     except Exception as e:
         v1 = print_tensor_struct(out) if out is not None else None
         raise Exception(f"Exception occurred ({print_tensor_struct(a)} * {print_tensor_struct(b)}, out={v1})") from e
-
-# data: (x)D batch of HVs
-# dims: Dimensions to sum
-# returns: (x-dims.len)D batch of HVs
-def bundle_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
-    v1 = add_grouped(data, dim=dim, out=out)
-    v2 = normalize(v1)
-    return v2
-
-# a: (x)D batch of HVs
-# b: (x)D batch of HVs
-# returns: (x)D batch of HVs
-def bind(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
-    v1 = mult(a, b, out=out)
-    v2 = normalize(v1)
-    return v2
 
 # positional_encodings: (x)D batch of HVs
 # encodings: (x)D batch of HVs
