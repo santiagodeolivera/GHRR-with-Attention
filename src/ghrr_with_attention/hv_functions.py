@@ -92,3 +92,34 @@ def value_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tens
     v3 = normalize(v2)
     return v3
 
+# a: (x)D batch of HVs
+# b: (x)D batch of HVs
+# returns: (x)D batch of floating-point numbers from 0 to 1
+def unnormalized_similarity(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    if a.shape != b.shape:
+        raise ValueError(f"Cannot calculate similarity on tensors of shape {a.shape} and {b.shape}")
+    
+    shape = a.shape
+    if shape[-1] != shape[-2]:
+        raise ValueError("Last two dimensions must be identical for both operands")
+    
+    D = a.shape[-3]
+    m = a.shape[-2]
+    
+    v1 = b.adjoint()
+    v2 = torch.matmul(a, v1)
+    v3 = torch.sum(v2, dim=-3)
+    v4 = torch.diagonal(v3, dim1=-2, dim2=-1).sum(dim=-1)
+    v5 = torch.real(v4)
+    v6 = v5 / (m * D)
+    return v6
+
+# a: (x)D batch of HVs
+# b: (x)D batch of HVs
+# returns: (x)D batch of floating-point numbers from 0 to 1
+def normalized_similarity(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    mid = unnormalized_similarity(a, b)
+    v1 = unnormalized_similarity(a, a)
+    v2 = unnormalized_similarity(b, b)
+    
+    return mid / torch.sqrt(v1 * v2)

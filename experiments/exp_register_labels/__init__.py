@@ -3,13 +3,13 @@ from torch_geometric.data import Data
 from torch_geometric.datasets import TUDataset
 from experiments import Experiment
 from pathlib import Path
+from typing import Iterable
 
 def execute(raw_args: Iterable[str]) -> None:
     root = Path(__file__) / "../.."
     
     file_path = root / "mutag_hvs/labels.txt"
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    
     
     dataset_root = root / "tudataset"
     dataset_root.mkdir(parents=True, exist_ok=True)
