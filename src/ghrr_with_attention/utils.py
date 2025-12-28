@@ -1,10 +1,12 @@
 import time
 import torch
-from typing import TypeVar, TypeGuard, Callable
+from typing import TypeVar, TypeGuard, Callable, ParamSpec, Hashable
+from functools import wraps
 
 # TODO: Find out where these functions should be located
 
 T = TypeVar('T')
+P = ParamSpec('P')
 
 def not_none(v: T | None) -> TypeGuard[T]:
     return v is not None
@@ -27,7 +29,7 @@ def calc_time_difference(before: int, after: int):
     time_difference_int = time_difference // 100
     time_difference_dec = time_difference  % 100
 
-    return f"{time_difference_int}.{time_difference_dec:02} s"
+    return f"{time_difference_int}.{time_difference_dec:02}s"
 
 def torch_cantor_pairing(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     a = torch.where(a >= 0, a * 2, a * (-2) - 1)
@@ -89,3 +91,35 @@ def print_tensor_struct(t: torch.Tensor) -> str:
     v1 = t.dtype
     v2 = ", ".join(str(x) for x in t.shape)
     return f"{v1}[{v2}]"
+
+def cached(fn: Callable[[], T]) -> Callable[[], T]:
+    mem: tuple[T] | None = None
+    
+    @wraps(fn)
+    def inner() -> T:
+        res: T
+        if mem is None:
+            res = fn()
+            mem = (res,)
+        else:
+            res = mem[0]
+        
+        return res
+    
+    return inner
+
+def cached_with_dict(serializer: Callable[P, Hashable]) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    
+    def decorator(fn: Callable[P, T]) -> Callable[P, T]:
+        mem: dict[Hashable, T] = dict()
+        
+        @wraps(fn)
+        def result(*args: P.args, **kwargs: P.kwargs) -> T:
+            key = serializer(*args, **kwargs)
+            if key not in mem:
+                mem[key] = fn(*args, **kwargs)
+            return mem[key]
+        
+        return result
+    
+    return decorator

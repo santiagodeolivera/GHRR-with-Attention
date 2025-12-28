@@ -1,6 +1,6 @@
 import argparse
 from experiments import Experiment
-from records import get_experiments
+from mutag_utils import experiments
 from ghrr_with_attention.utils import not_none
 from json import dumps as json_dumps
 
@@ -19,7 +19,7 @@ def main() -> None:
     experiment_id: str = args.experiment_id
     rest: Iterable[str] = args.rest
     
-    experiment: Experiment | None = get_experiments().get(experiment_id, None)
+    experiment: Experiment | None = experiments.get(experiment_id, None)
     
     if not not_none(experiment):
         v1 = json_dumps(experiment_id)

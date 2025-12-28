@@ -24,15 +24,11 @@ def torch_fromfunction(              \
 
 # data: (x)D batch of HVs
 # returns: (x)D batch of HVs
-def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
+def normalize(data: torch.Tensor) -> torch.Tensor:
     data_size = reduce(lambda a, b: a * b, data.shape[-3:])
     view = data.view(-1, data_size)
     
-    real_out: torch.Tensor
-    if not_none(out):
-        real_out = out
-    else:
-        real_out = torch.empty_like(data)
+    real_out: torch.Tensor = torch.empty_like(data)
     real_out_view = real_out.view(-1, data_size)
     
     F.normalize(view, p=2, dim=1, out=real_out_view)
@@ -41,7 +37,7 @@ def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.T
 # data: (x)D batch of HVs
 # dims: Dimensions to sum
 # returns: (x-dims.len)D batch of HVs
-def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | int | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
+def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | int | None = None) -> torch.Tensor:
     if dim is None: dim = tuple(range(len(data.shape) - 3))
     if type(dim) == int: dim = (dim,)
 
@@ -50,25 +46,29 @@ def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | int | None = None,
         if dim_id in dim or -n in dim:
             raise ValueError(F"Dimension {dim_id} (-{n}) is internal to the structure of HVs")
     
-    return torch.sum(data, dim=dim, out=out)
+    return torch.sum(data, dim=dim)
 
 # a: (x)D batch of HVs
 # b: (x)D batch of HVs
 # returns: (x)D batch of HVs
-def mult(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
+def mult(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     try:
-        return torch.matmul(a, b, out=out)
+        return torch.matmul(a, b)
     except Exception as e:
-        v1 = print_tensor_struct(out) if out is not None else None
-        raise Exception(f"Exception occurred ({print_tensor_struct(a)} * {print_tensor_struct(b)}, out={v1})") from e
+        raise Exception(f"Exception occurred ({print_tensor_struct(a)} * {print_tensor_struct(b)})") from e
 
 # positional_encodings: (x)D batch of HVs
 # encodings: (x)D batch of HVs
 # returns: (x-1)D batch of HVs
 def query_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
+    
     v2 = add_grouped(v1, dim=-4)
+    del v1
+    
     v3 = normalize(v2)
+    del v2
+    
     return v3
 
 # encodings1: (x)D batch of HVs
@@ -77,10 +77,19 @@ def query_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tens
 # returns: (x-1)D batch of HVs
 def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor) -> torch.Tensor:
     v1 = mult(encodings2, positions2)
+
     v2 = v1.adjoint()
+    del v1
+
     v3 = mult(v2, encodings1)
+    del v2
+
     v4 = add_grouped(v3, dim=-4)
+    del v3
+
     v5 = normalize(v4)
+    del v4
+
     return v5
 
 # positional_encodings: (x)D batch of HVs
@@ -88,13 +97,18 @@ def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positio
 # returns: (x-1)D batch of HVs
 def value_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
     v1 = mult(positional_encodings, encodings)
+
     v2 = add_grouped(v1, dim=-4)
+    del v1
+
     v3 = normalize(v2)
+    del v2
+
     return v3
 
 # a: (x)D batch of HVs
 # b: (x)D batch of HVs
-# returns: (x)D batch of floating-point numbers from 0 to 1
+# returns: (x)D batch of floating-point numbers
 def unnormalized_similarity(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     if a.shape != b.shape:
         raise ValueError(f"Cannot calculate similarity on tensors of shape {a.shape} and {b.shape}")
@@ -107,11 +121,22 @@ def unnormalized_similarity(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     m = a.shape[-2]
     
     v1 = b.adjoint()
+
     v2 = torch.matmul(a, v1)
+    del v1
+
     v3 = torch.sum(v2, dim=-3)
+    del v2
+
     v4 = torch.diagonal(v3, dim1=-2, dim2=-1).sum(dim=-1)
+    del v3
+
     v5 = torch.real(v4)
+    del v4
+
     v6 = v5 / (m * D)
+    del v5
+
     return v6
 
 # a: (x)D batch of HVs
@@ -121,5 +146,10 @@ def normalized_similarity(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     mid = unnormalized_similarity(a, b)
     v1 = unnormalized_similarity(a, a)
     v2 = unnormalized_similarity(b, b)
+    result = mid / torch.sqrt(v1 * v2)
     
-    return mid / torch.sqrt(v1 * v2)
+    del mid
+    del v1
+    del v2
+    
+    return result
