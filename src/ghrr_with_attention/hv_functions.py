@@ -6,17 +6,22 @@ from functools import reduce
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
-def torch_fromfunction(              \
+# Generates a tensor from a function
+def torch_fromfunction( \
     fn: Callable[..., torch.Tensor], \
-    shape: tuple[int, ...],          \
-    *,                               \
-    device: torch.device,            \
+    shape: tuple[int, ...], \
+    *, \
+    device: torch.device, \
     dtype: torch.dtype | None = None \
 ) -> torch.Tensor:
     tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
     tensors2 = torch.meshgrid(*tensors1, indexing="ij")
     
     res = fn(*tensors2)
+    
+    for tensor in tensors1: del tensor
+    for tensor in tensors2: del tensor
+    
     if dtype is not None:
         res = res.to(dtype)
     
@@ -41,7 +46,12 @@ def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.T
 # data: (x)D batch of HVs
 # dims: Dimensions to sum
 # returns: (x-dims.len)D batch of HVs
-def add_grouped(data: torch.Tensor, *, dim: tuple[int, ...] | int | None = None, out: torch.Tensor | None = None) -> torch.Tensor:
+def add_grouped( \
+    data: torch.Tensor, \
+    *, \
+    dim: tuple[int, ...] | int | None = None, \
+    out: torch.Tensor | None = None \
+) -> torch.Tensor:
     if dim is None: dim = tuple(range(len(data.shape) - 3))
     if type(dim) == int: dim = (dim,)
 
