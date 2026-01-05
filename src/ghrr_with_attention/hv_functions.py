@@ -6,14 +6,30 @@ from functools import reduce
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
-# Generates a tensor from a function
-def torch_fromfunction( \
+def torch_fromfunction__no_management( \
     fn: Callable[..., torch.Tensor], \
     shape: tuple[int, ...], \
     *, \
     device: torch.device, \
     dtype: torch.dtype | None = None \
-) -> torch.Tensor:
+) -> Any:
+    tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
+    tensors2 = torch.meshgrid(*tensors1, indexing="ij")
+    
+    res = fn(*tensors2)
+    
+    if dtype is not None:
+        res = res.to(dtype)
+    
+    return res
+
+def torch_fromfunction__with_management( \
+    fn: Callable[..., torch.Tensor], \
+    shape: tuple[int, ...], \
+    *, \
+    device: torch.device, \
+    dtype: torch.dtype | None = None \
+) -> Any:
     tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
     tensors2 = torch.meshgrid(*tensors1, indexing="ij")
     
@@ -26,6 +42,8 @@ def torch_fromfunction( \
         res = res.to(dtype)
     
     return res
+
+torch_fromfunction = torch_fromfunction__with_management
 
 # data: (x)D batch of HVs
 # returns: (x)D batch of HVs

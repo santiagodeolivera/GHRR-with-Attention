@@ -1,6 +1,7 @@
 import time
 import torch
 from typing import TypeVar, TypeGuard, Callable
+from pathlib import Path
 
 # TODO: Find out where these functions should be located
 
@@ -89,3 +90,22 @@ def print_tensor_struct(t: torch.Tensor) -> str:
     v1 = t.dtype
     v2 = ", ".join(str(x) for x in t.shape)
     return f"{v1}[{v2}]"
+
+def find_unique_path(path_input: str | Path) -> Path:
+    path: Path
+    if type(path_input) == str:
+        path = Path(path_input)
+    else:
+        path = path_input
+    
+    original_stem = path.stem
+    suffix = path.suffix
+    
+    res = path
+    i = 1
+    while res.exists():
+        new_name = f"{original_stem} ({i}){suffix}"
+        res = path.with_name(new_name)
+        i += 1
+    
+    return res
