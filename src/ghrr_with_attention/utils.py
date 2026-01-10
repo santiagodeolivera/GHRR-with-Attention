@@ -3,6 +3,8 @@ import torch
 from typing import TypeVar, TypeGuard, Callable
 from pathlib import Path
 
+from device import default_device
+
 # TODO: Find out where these functions should be located
 
 T = TypeVar('T')
@@ -109,3 +111,9 @@ def find_unique_path(path_input: str | Path) -> Path:
         i += 1
     
     return res
+
+def get_range_tensor(upper_limit: int) -> torch.Tensor:
+	return torch.tensor(tuple(range(upper_limit)), dtype=torch.int8, device=default_device)
+
+def get_single_tensor(n: float) -> torch.Tensor:
+	return torch.tensor(n, dtype=torch.float32, device=default_device)
