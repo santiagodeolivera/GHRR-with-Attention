@@ -1,6 +1,7 @@
 import torch
 from pathlib import Path
-from ghrr_with_attention.utils import CheckpointContext
+
+from utils import CheckpointContext
 
 def get_random_hvs(depth: int, matrix_size: int, file_path: Path, length: int, *, device: torch.device, override: bool = False) -> torch.Tensor:
     res: torch.Tensor

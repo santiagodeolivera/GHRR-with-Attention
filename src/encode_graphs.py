@@ -1,33 +1,14 @@
-import os
-import sys
 import torch
 from pathlib import Path
-import pickle
-from typing import TypeVar
 import torch
 import networkx as nx
 import itertools
-import re
 
 import hv_functions
 from hv_memory import get_random_hvs
-from utils import find_unique_path, CheckpointContext, get_range_tensor, get_single_tensor, commutative_cantor_pairing
+from utils import CheckpointContext, get_range_tensor, get_single_tensor, commutative_cantor_pairing
 from device import default_device
 from mutag import get_mutag_dataset
-
-"""
-def record_gpu_management(fn: Callable[[], T], out: Path) -> T:
-	torch.cuda.memory._record_memory_history()
-	
-	res = fn()
-	
-	snapshot = torch.cuda.memory._snapshot()
-	torch.cuda.memory._record_memory_history(enabled=None)
-	with out.open("wb") as f:
-		pickle.dump(snapshot, f, protocol=4)
-	
-	return res
-"""
 
 D = 10000
 m = 28
@@ -122,98 +103,4 @@ def action_create_hv(g_id: int, root_dir: Path) -> None:
 		ctx2 = ctx2 \
 	)
 
-def action_create_hvs(root_dir: Path) -> None:
-	encodings_dir = root_dir / "encodings"
-	encodings_dir.mkdir(parents=True, exist_ok=True)
-	base_dir = root_dir / "base"
-	base_dir.mkdir(parents=True, exist_ok=True)
-	
-	query_encodings = get_random_hvs(D, m, base_dir / "query.pt", m, device=default_device)
-	key_encodings_1 = get_random_hvs(D, m, base_dir / "key1.pt" , m, device=default_device)
-	key_encodings_2 = get_random_hvs(D, m, base_dir / "key2.pt" , m, device=default_device)
-	value_encodings = get_random_hvs(D, m, base_dir / "value.pt", m, device=default_device)
-	
-	v1 = get_range_tensor(m)
-	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
-	v3 = torch.where((n == row) & (n == col), get_single_tensor(1.0), get_single_tensor(0.0))
-	position_encodings = v3[:, None, :, :].expand(m, D, m, m)
-	
-	ctx1 = CheckpointContext(f"Graph - individual parts")
-	ctx2 = CheckpointContext(f"Graph - whole graph")
-	ctx3 = CheckpointContext(f"Graph - all graphs", msg="Start")
-	
-	graphs = get_mutag_dataset(root_dir / "tudataset")
-	
-	for g_id, graph in enumerate(graphs):
-		ctx1.print(f"Graph {g_id} - Start emptying GPU cache")
-		torch.cuda.empty_cache()
-		ctx1.print(f"Graph {g_id} - Finish emptying GPU cache")
-		
-		create_hv( \
-			g_id = g_id, \
-			graph = graph, \
-			out_path = encodings_dir / f"{g_id}.pt", \
-			position_encodings = position_encodings, \
-			query_encodings = query_encodings, \
-			key_encodings_1 = key_encodings_1, \
-			key_encodings_2 = key_encodings_2, \
-			value_encodings = value_encodings, \
-			ctx1 = ctx1, \
-			ctx2 = ctx2 \
-		)
-
-	ctx3.print(f"Final push - Start emptying GPU cache")
-	torch.cuda.empty_cache()
-	ctx3.print(f"Final push - Finish emptying GPU cache")
-
-encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
-def get_action(id: str) -> Callable[[Path], None]:
-	if id == "encode":
-		return action_create_hvs
-	
-	match_list = encode_singular_action_ids_re.findall(id)
-	if len(match_list) > 0:
-		g_id_str = match_list[0]
-		g_id = int(g_id_str)
-		return lambda path: action_create_hv(g_id, path)
-	
-	return None
-
-def main() -> None:
-	if default_device.type != "cuda":
-		print("GPU not available. Exiting")
-		return
-	
-	root_dir_str = os.environ.get("ROOT_DIR", None)
-	if root_dir_str is None:
-		print("Env var ROOT_DIR not present")
-		return
-	root_dir = Path(root_dir_str)
-	
-	action_id = os.environ.get("ACTION_ID", None)
-	if action_id is None:
-		print("Env var ACTION_ID not present")
-		return
-	action = get_action(action_id)
-	if action is None:
-		print("Unknown action id")
-		return
-	
-	mem_history_out_str = os.environ.get("MEM_HISTORY_OUT", None)
-	mem_history_out = Path(mem_history_out_str) if mem_history_out_str is not None else None
-	
-	if mem_history_out is not None:
-		torch.cuda.memory._record_memory_history()
-	
-		action(root_dir)
-	
-		snapshot = torch.cuda.memory._snapshot()
-		torch.cuda.memory._record_memory_history(enabled=None)
-		with mem_history_out.open("wb") as f:
-			pickle.dump(snapshot, f, protocol=4)
-	else:
-		action(root_dir)
-	
-
-if __name__ == "__main__":
-	main()
+__all__ = ["action_create_hv"]

@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
-from ghrr_with_attention.utils import value_or, not_none, print_tensor_struct
-from typing import Callable
+from typing import Callable, Any
 from functools import reduce
+
+from utils import value_or, not_none, print_tensor_struct
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
