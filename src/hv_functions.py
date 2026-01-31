@@ -11,7 +11,7 @@ def torch_fromfunction( \
 	fn: Callable[..., torch.Tensor], \
 	shape: tuple[int, ...], \
 	*, \
-	device: torch.device
+	device: torch.device \
 ) -> Any:
 	tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
 	tensors2 = torch.meshgrid(*tensors1, indexing="ij")

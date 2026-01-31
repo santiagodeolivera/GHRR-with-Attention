@@ -9,9 +9,7 @@ from hv_memory import get_random_hvs
 from utils import CheckpointContext, get_range_tensor, get_single_tensor, commutative_cantor_pairing
 from device import default_device
 from mutag import get_mutag_dataset
-
-D = 10000
-m = 28
+from constants import D, m
 
 def create_hv( \
 	g_id: int, \
