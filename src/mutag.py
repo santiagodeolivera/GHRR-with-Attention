@@ -1,5 +1,6 @@
 from typing import TypeGuard
 from pathlib import Path
+import json
 
 from torch_geometric.data import Data
 from torch_geometric.datasets import TUDataset
@@ -27,9 +28,46 @@ def graph_to_networkx(d: Data) -> nx.Graph:
 
 	return G
 
-def get_mutag_dataset(root_dir: Path) -> Iterable[nx.Graph]:
+dataset_cache: Iterable[Data] | None = None
+def get_dataset(root_dir: Path) -> Iterable[Data]:
+	global dataset_cache
+	
+	if dataset_cache is not None:
+		return dataset_cache
+	
 	dataset: Iterable[Data] = TUDataset(root=str(root_dir), name="MUTAG")
+	dataset_cache = dataset
+	return dataset
+
+def get_mutag_dataset(tudataset_dir: Path) -> Iterable[nx.Graph]:
+	dataset: Iterable[Data] = get_dataset(tudataset_dir)
 	graphs = tuple(graph_to_networkx(d) for d in dataset)
 	return graphs
 
-__all__ = ["get_mutag_dataset"]
+def get_mutag_dataset_labels(tudataset_dir: Path) -> Iterable[int]:
+	dataset: Iterable[Data] = get_dataset(tudataset_dir)
+	ids = tuple(d.y.item() for d in dataset)
+	return ids
+
+def define_ids_to_labels_mapping(tudataset_dir: Path, out_file: Path):
+	ids = dict((i, label) for (i, label) in enumerate(get_mutag_dataset_labels(tudataset_dir)))
+	json_data = json.dumps(ids)
+	out_file.write_text(json_data)
+
+
+def get_ids_to_labels_mapping(file: Path) -> dict[int, int]:
+	json_data = file.read_text()
+	ids = json.loads(json_data)
+	
+	if type(ids) != dict:
+		raise Exception()
+	
+	if any(type(id) != int for id in ids.keys()):
+		raise Exception()
+	
+	if any(type(label) != int for label in ids.values()):
+		raise Exception()
+	
+	return ids
+
+__all__ = ["get_mutag_dataset", "define_ids_to_labels_mapping", "get_ids_to_labels_mapping"]

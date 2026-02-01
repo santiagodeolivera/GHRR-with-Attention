@@ -5,7 +5,7 @@ import torch
 from constants import D, m
 from hv_proxy import HVProxy
 from device import default_device
-from hv_functions import normalize
+from hv_functions import normalize, normalized_similarity
 
 def get_class_hv_from_file(path: Path) -> tuple[int, torch.Tensor]:
 	label = int(path.stem)
@@ -44,3 +44,49 @@ class Model:
 			classes[label] = class_hv
 		
 		return Model(classes)
+
+	# test_batch: (x)D batch of HVs
+	# returns: (x)D batch of integers
+	def test(self, test_batch: torch.Tensor) -> torch.Tensor:
+		res_shape = test_batch.shape[:-3]
+		
+		if not res_shape:
+			min_distance: torch.Tensor | None = None
+			closest_label: int = -1
+			
+			for label, class_hv in self.__classes:
+				distance: torch.Tensor = normalized_similarity(test_batch, class_hv)
+				
+				if min_distance is None or distance.item() < min_distance.item():
+					min_distance = distance
+					closest_label = label
+			
+			if min_distance is None:
+				raise Exception()
+			
+			return torch.tensor(closest_label)
+		elif any(x == 0 for x in res_shape):
+			return torch.zeros(res_shape)
+		else:
+			min_distances: torch.Tensor = torch.zeros(*res_shape)
+			closest_labels: torch.Tensor = torch.zeros(*res_shape, dtype=np.int8)
+			defined_vars: bool = False
+			
+			for label, class_hv in self.__classes:
+				class_hv_2 = class_hv[*((None,) * len(res_shape)), ...].expand(*res_shape, -1, -1, -1)
+				distances: torch.Tensor = normalized_similarity(test_batch, class_hv_2)
+				
+				if not defined_vars:
+					min_distances = distances
+					closest_labels = torch.full(res_shape, label, dtype=np.int8)
+					defined_vars = True
+					continue
+				
+				modify_result = distances < min_distances
+				min_distances = torch.where(modify_result, distances, min_distances)
+				closest_labels = torch.where(modify_result, label, closest_labels)
+			
+			if not defined_vars:
+				raise Exception()
+			
+			return closest_labels
