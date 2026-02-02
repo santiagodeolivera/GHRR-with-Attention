@@ -136,3 +136,19 @@ def proportional_split(input: list[T], proportion: float) -> tuple[tuple[T, ...]
 	left = tuple(input[:pivot])
 	right = tuple(input[pivot:])
 	return (left, right)
+
+def get_train_and_test_sets_proportion() -> float | None:
+	proportion_str = os.environ.get("PROPORTION", None)
+	if proportion_str is None:
+		raise Exception("Proportion not defined")
+	
+	return float(proportion_str)
+
+def define_test_and_test_datasets(out_path: Path) -> None:
+	ids: list[int] = list(range(188))
+	proportion = get_train_and_test_sets_proportion()
+	
+	train_ids, test_ids = proportional_split(ids, proportion)
+	json_data = json.dumps({"train": train_ids, "test": test_ids})
+	
+	out_path.write_text(json_data)

@@ -4,12 +4,16 @@ from pathlib import Path
 from typing import Callable
 import pickle
 import re
+import json
 
 from device import default_device
 from encode_graphs import action_create_hv
+from mutag import define_ids_to_labels_mapping
+from fs_organization import FsOrganizer
+from utils import define_test_and_test_datasets
 
 encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
-def get_action(id_str: str) -> Callable[[Path], None] | None:
+def get_action(id_str: str) -> Callable[[FsOrganizer], None] | None:
 	id: int
 	try:
 		id = int(id_str)
@@ -20,7 +24,11 @@ def get_action(id_str: str) -> Callable[[Path], None] | None:
 		return None
 	elif id < 188:
 		g_id = id
-		return lambda path: action_create_hv(g_id, path)
+		return lambda root: action_create_hv(g_id, root)
+	elif id < 189:
+		return lambda root: define_ids_to_labels_mapping(root.ids_to_labels)
+	elif id < 190:
+		return lambda root: define_test_and_test_datasets(root.train_and_test_sets_distribution)
 	else:
 		return None
 
@@ -31,19 +39,15 @@ def main() -> None:
 	
 	root_dir_str = os.environ.get("ROOT_DIR", None)
 	if root_dir_str is None:
-		print("Env var ROOT_DIR not present")
-		return
+		raise Exception("Env var ROOT_DIR not present")
 	root_dir = Path(root_dir_str)
 	
 	action_id = os.environ.get("ACTION_ID", None)
 	if action_id is None:
-		print("Env var ACTION_ID not present")
-		return
+		raise Exception("Env var ACTION_ID not present")
 	action = get_action(action_id)
 	if action is None:
-		print("Unknown action id")
-		return
-	
+		raise Exception("Unknown action id")
 	mem_history_out_str = os.environ.get("MEM_HISTORY_OUT", None)
 	mem_history_out = Path(mem_history_out_str) if mem_history_out_str is not None else None
 	

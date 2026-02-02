@@ -49,11 +49,10 @@ def get_mutag_dataset_labels(tudataset_dir: Path) -> Iterable[int]:
 	ids = tuple(d.y.item() for d in dataset)
 	return ids
 
-def define_ids_to_labels_mapping(tudataset_dir: Path, out_file: Path):
+def define_ids_to_labels_mapping(tudataset_dir: Path, out_file: Path) -> None:
 	ids = tuple(get_mutag_dataset_labels(tudataset_dir))
 	json_data = json.dumps(ids)
 	out_file.write_text(json_data)
-
 
 def get_ids_to_labels_mapping(file: Path) -> tuple[int, ...]:
 	json_data = file.read_text()

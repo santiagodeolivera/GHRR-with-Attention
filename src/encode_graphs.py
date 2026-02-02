@@ -10,6 +10,7 @@ from utils import CheckpointContext, get_range_tensor, get_single_tensor, commut
 from device import default_device
 from mutag import get_mutag_dataset
 from constants import D, m
+from fs_organization import FsOrganizer
 
 def create_hv( \
 	g_id: int, \
@@ -66,16 +67,11 @@ def create_hv( \
 	
 	ctx2.print(f"Graph {g_id} - Finish")
 
-def action_create_hv(g_id: int, root_dir: Path) -> None:
-	encodings_dir = root_dir / "encodings"
-	encodings_dir.mkdir(parents=True, exist_ok=True)
-	base_dir = root_dir / "base"
-	base_dir.mkdir(parents=True, exist_ok=True)
-	
-	query_encodings = get_random_hvs(D, m, base_dir / "query.pt", m, device=default_device)
-	key_encodings_1 = get_random_hvs(D, m, base_dir / "key1.pt" , m, device=default_device)
-	key_encodings_2 = get_random_hvs(D, m, base_dir / "key2.pt" , m, device=default_device)
-	value_encodings = get_random_hvs(D, m, base_dir / "value.pt", m, device=default_device)
+def action_create_hv(g_id: int, root: FsOrganizer) -> None:
+	query_encodings = get_random_hvs(D, m, root.query_encodings, m, device=default_device)
+	key_encodings_1 = get_random_hvs(D, m, root.key_encodings_1, m, device=default_device)
+	key_encodings_2 = get_random_hvs(D, m, root.key_encodings_2, m, device=default_device)
+	value_encodings = get_random_hvs(D, m, root.value_encodings, m, device=default_device)
 	
 	v1 = get_range_tensor(m)
 	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
@@ -85,13 +81,13 @@ def action_create_hv(g_id: int, root_dir: Path) -> None:
 	ctx1 = CheckpointContext(f"Graph - individual parts")
 	ctx2 = CheckpointContext(f"Graph - whole graph")
 	
-	graphs = get_mutag_dataset(root_dir / "tudataset")
+	graphs = get_mutag_dataset(root.tudataset)
 	graph = next(itertools.islice(graphs, g_id, None))
 
 	create_hv( \
 		g_id = g_id, \
 		graph = graph, \
-		out_path = encodings_dir / f"{g_id}.pt", \
+		out_path = root.hv_encoding_of(g_id), \
 		position_encodings = position_encodings, \
 		query_encodings = query_encodings, \
 		key_encodings_1 = key_encodings_1, \
