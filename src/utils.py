@@ -1,7 +1,10 @@
 import time
-import torch
+from random import shuffle as random_shuffle
+from math import round as math_round
 from typing import TypeVar, TypeGuard, Callable, Any
 from pathlib import Path
+
+import torch
 
 from device import default_device
 
@@ -124,3 +127,12 @@ def get_range_tensor(upper_limit: int) -> torch.Tensor:
 
 def get_single_tensor(n: float) -> torch.Tensor:
 	return torch.tensor(n, dtype=torch.float32, device=default_device)
+
+# Changes the input parameter
+def proportional_split(input: list[T], proportion: float) -> tuple[tuple[T, ...], tuple[T, ...]]:
+	random_shuffle(input)
+	pivot = math_round(proportion * len(input))
+	
+	left = tuple(input[:pivot])
+	right = tuple(input[pivot:])
+	return (left, right)

@@ -50,24 +50,21 @@ def get_mutag_dataset_labels(tudataset_dir: Path) -> Iterable[int]:
 	return ids
 
 def define_ids_to_labels_mapping(tudataset_dir: Path, out_file: Path):
-	ids = dict((i, label) for (i, label) in enumerate(get_mutag_dataset_labels(tudataset_dir)))
+	ids = tuple(get_mutag_dataset_labels(tudataset_dir))
 	json_data = json.dumps(ids)
 	out_file.write_text(json_data)
 
 
-def get_ids_to_labels_mapping(file: Path) -> dict[int, int]:
+def get_ids_to_labels_mapping(file: Path) -> tuple[int, ...]:
 	json_data = file.read_text()
 	ids = json.loads(json_data)
 	
-	if type(ids) != dict:
+	if type(ids) != list:
 		raise Exception()
 	
-	if any(type(id) != int for id in ids.keys()):
+	if any(type(label) != int for label in ids):
 		raise Exception()
 	
-	if any(type(label) != int for label in ids.values()):
-		raise Exception()
-	
-	return ids
+	return tuple(ids)
 
 __all__ = ["get_mutag_dataset", "define_ids_to_labels_mapping", "get_ids_to_labels_mapping"]
