@@ -20,7 +20,7 @@ echo Action %i% ended
 if %el% NEQ 0 goto loopend
 
 set /a i=i+1
-if %i% NEQ 188 goto loopstart
+if %i% NEQ 193 goto loopstart
 
 :loopend
 

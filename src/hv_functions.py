@@ -103,7 +103,7 @@ def attention_function(query_hv: torch.Tensor, key_hv: torch.Tensor, value_hv: t
 	v1: torch.Tensor = torch.adjoint(key_hv)
 	v2: torch.Tensor = mult(query_hv, v1)
 	v3: torch.Tensor = v2.real
-	v4: torch.Tensor = torch.nn.functional.softmax(v3, dim=-3)
+	v4: torch.Tensor = torch.nn.functional.softmax(v3, dim=-3).type(torch.complex64)
 	v5: torch.Tensor = mult(v4, value_hv)
 	v6: torch.Tensor = normalize(v5)
 	return v6

@@ -3,13 +3,14 @@ from pathlib import Path
 class FsOrganizer:
 	__root: Path
 	
-	def __init__(root: Path):
+	def __init__(self, root: Path):
 		self.__root = root
 	
-	def setup():
+	def setup(self):
 		(self.__root / "encodings").mkdir(parents=True, exist_ok=True)
 		(self.__root / "base").mkdir(parents=True, exist_ok=True)
 		(self.__root / "tudataset").mkdir(parents=True, exist_ok=True)
+		(self.__root / "model").mkdir(parents=True, exist_ok=True)
 	
 	@property
 	def tudataset(self) -> Path:
@@ -45,3 +46,11 @@ class FsOrganizer:
 	@property
 	def train_and_test_sets_distribution(self) -> Path:
 		return self.__root / "sets_distribution.json"
+	
+	@property
+	def model(self):
+		return self.__root / "model"
+	
+	@property
+	def test_results(self):
+		return self.__root / "test_results.json"

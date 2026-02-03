@@ -75,7 +75,7 @@ def action_create_hv(g_id: int, root: FsOrganizer) -> None:
 	
 	v1 = get_range_tensor(m)
 	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
-	v3 = torch.where((n == row) & (n == col), get_single_tensor(1.0), get_single_tensor(0.0))
+	v3 = torch.where((n == row) & (n == col), get_single_tensor(1.0), get_single_tensor(0.0)).type(torch.complex64)
 	position_encodings = v3[:, None, :, :].expand(m, D, m, m)
 	
 	ctx1 = CheckpointContext(f"Graph - individual parts")

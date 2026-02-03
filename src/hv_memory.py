@@ -12,7 +12,7 @@ def get_random_hvs(depth: int, matrix_size: int, file_path: Path, length: int, *
 	if not file_path.exists() or override:
 		real = torch.randn(length, depth, matrix_size, matrix_size, device=device)
 		img = torch.randn(length, depth, matrix_size, matrix_size, device=device)
-		complex = torch.complex(res)
+		complex = torch.complex(real, img)
 		res = normalize(complex)
 		
 		ctx.print("Saving (override)" if override else "Saving")

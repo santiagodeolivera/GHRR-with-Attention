@@ -1,6 +1,5 @@
 import time
 from random import shuffle as random_shuffle
-from math import round as math_round
 from typing import TypeVar, TypeGuard, Callable, Any
 from pathlib import Path
 
@@ -23,6 +22,13 @@ def is_str(v: T | str) -> TypeGuard[str]:
 
 def value_or(v: T | None, default: T) -> T:
 	return v if not_none(v) else default
+
+def check_int(v: Any) -> int:
+	t = type(v)
+	if t != int:
+		raise ValueError(f"Expected an int, got {t}")
+	
+	return v
 
 def value_or_else(v: T | None, default_fn: Callable[[], T]) -> T:
 	if not_none(v):
@@ -131,7 +137,7 @@ def get_single_tensor(n: float) -> torch.Tensor:
 # Changes the input parameter
 def proportional_split(input: list[T], proportion: float) -> tuple[tuple[T, ...], tuple[T, ...]]:
 	random_shuffle(input)
-	pivot = math_round(proportion * len(input))
+	pivot = round(proportion * len(input))
 	
 	left = tuple(input[:pivot])
 	right = tuple(input[pivot:])
@@ -144,11 +150,39 @@ def get_train_and_test_sets_proportion() -> float | None:
 	
 	return float(proportion_str)
 
-def define_test_and_test_datasets(out_path: Path) -> None:
+def define_train_and_test_datasets(path: Path) -> None:
 	ids: list[int] = list(range(188))
 	proportion = get_train_and_test_sets_proportion()
 	
 	train_ids, test_ids = proportional_split(ids, proportion)
 	json_data = json.dumps({"train": train_ids, "test": test_ids})
 	
-	out_path.write_text(json_data)
+	path.write_text(json_data)
+
+def get_train_and_test_datasets(path: Path) -> tuple[tuple[int, ...], tuple[int, ...]]:
+	json_data = path.read_text()
+	
+	raw_data = json.loads(json_data)
+	
+	if type(raw_data) != dict:
+		raise Exception()
+	if "train" not in raw_data:
+		raise Exception()
+	if "test" not in raw_data:
+		raise Exception()
+	
+	train_ids = raw_data["train"]
+	
+	if type(train_ids) != list:
+		raise Exception()
+	if any(type(x) != int for x in train_ids):
+		raise Exception()
+
+	test_ids = raw_data["test"]
+	
+	if type(test_ids) != list:
+		raise Exception()
+	if any(type(x) != int for x in test_ids):
+		raise Exception()
+	
+	return (train_ids, test_ids)

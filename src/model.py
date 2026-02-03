@@ -8,9 +8,9 @@ from device import default_device
 from hv_functions import normalize, normalized_similarity
 
 def get_class_hv_from_file(path: Path) -> tuple[int, torch.Tensor]:
-	label = int(path.stem)
+	id = int(path.stem)
 	hv = torch.load(path, map_location=default_device)
-	return (label, hv)
+	return (id, hv)
 
 class Model:
 	__classes: dict[int, torch.Tensor]
@@ -18,7 +18,7 @@ class Model:
 	def __init__(self, classes: dict[int, torch.Tensor]):
 		self.__classes = classes
 	
-	def to_fs(self, root_dir: Path):
+	def to_fs(self, root_dir: Path) -> None:
 		for label, class_hv in self.__classes:
 			torch.save(class_hv, root_dir / f"{label}.pt")
 	
@@ -29,19 +29,20 @@ class Model:
 		return Model(classes)
 	
 	@staticmethod
-	def train(training_sets: dict[int, Iterable[HVProxy]]) -> "Model":
-		classes: dict[int, torch.Tensor] = dict()
+	def train(training_set: Iterable[HVProxy]) -> "Model":
+		unnormalized_class_hvs: dict[int, torch.Tensor] = dict()
 		
-		for label, proxies in training_sets.items():
-			sum_hv: torch.Tensor = torch.zeros(D, m, m)
+		for proxy in training_set:
+			label = proxy.label
+			if label not in unnormalized_class_hvs:
+				unnormalized_class_hvs[label] = torch.zeros(D, m, m)
 			
-			for proxy in proxies:
-				new_hv: torch.Tensor = proxy.get_hv()
-				torch.add(sum_hv, new_hv, out=sum_hv)
+			new_hv: torch.Tensor = proxy.get_hv()
+			torch.add(unnormalized_class_hvs[label], new_hv, out=unnormalized_class_hvs[label])
 			
-			class_hv: torch.Tensor = normalize(sum_hv)
-			
-			classes[label] = class_hv
+			del new_hv
+		
+		classes = dict((k, normalize(v)) for k, v in unnormalized_class_hvs.items())
 		
 		return Model(classes)
 
