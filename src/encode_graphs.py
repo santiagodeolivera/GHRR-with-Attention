@@ -5,12 +5,20 @@ import networkx as nx
 import itertools
 
 import hv_functions
-from hv_memory import get_random_hvs
-from utils import CheckpointContext, get_range_tensor, get_single_tensor, commutative_cantor_pairing
+from hv_memory import get_complex_random_hvs
+from utils import CheckpointContext, get_range_tensor, commutative_cantor_pairing
 from device import default_device
 from mutag import get_mutag_dataset
 from constants import D, m
 from fs_organization import FsOrganizer
+
+def get_position_encodings() -> torch.Tensor:
+	v1 = get_range_tensor(m)
+	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
+	v3 = torch.where((n == row) & (n == col), torch.tensor(1.0, dtype=torch.complex64), torch.tensor(0.0, dtype=torch.complex64))
+	position_encodings = v3[:, None, :, :].expand(m, D, m, m)
+	
+	return position_encodings
 
 def create_hv( \
 	g_id: int, \
@@ -68,18 +76,15 @@ def create_hv( \
 	ctx2.print(f"Graph {g_id} - Finish")
 
 def action_create_hv(g_id: int, root: FsOrganizer) -> None:
-	query_encodings = get_random_hvs(D, m, root.query_encodings, m, device=default_device)
-	key_encodings_1 = get_random_hvs(D, m, root.key_encodings_1, m, device=default_device)
-	key_encodings_2 = get_random_hvs(D, m, root.key_encodings_2, m, device=default_device)
-	value_encodings = get_random_hvs(D, m, root.value_encodings, m, device=default_device)
-	
-	v1 = get_range_tensor(m)
-	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
-	v3 = torch.where((n == row) & (n == col), get_single_tensor(1.0), get_single_tensor(0.0)).type(torch.complex64)
-	position_encodings = v3[:, None, :, :].expand(m, D, m, m)
+	query_encodings = get_complex_random_hvs(D, m, root.query_encodings, m, device=default_device)
+	key_encodings_1 = get_complex_random_hvs(D, m, root.key_encodings_1, m, device=default_device)
+	key_encodings_2 = get_complex_random_hvs(D, m, root.key_encodings_2, m, device=default_device)
+	value_encodings = get_complex_random_hvs(D, m, root.value_encodings, m, device=default_device)
 	
 	ctx1 = CheckpointContext(f"Graph - individual parts")
 	ctx2 = CheckpointContext(f"Graph - whole graph")
+	
+	position_encodings = get_position_encodings()
 	
 	graphs = get_mutag_dataset(root.tudataset)
 	graph = next(itertools.islice(graphs, g_id, None))

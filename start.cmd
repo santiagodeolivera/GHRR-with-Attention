@@ -2,11 +2,15 @@
 
 SETLOCAL
 
+IF "%START%"=="" (
+	set START=0
+)
+
 SET exec_path=%~dp0
 SET exec_path=%exec_path:~0,-1%
 SET exec_path=%exec_path%\src
 
-set i=0
+set i=%START%
 
 :loopstart
 

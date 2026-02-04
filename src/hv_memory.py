@@ -4,7 +4,7 @@ from pathlib import Path
 from utils import CheckpointContext
 from hv_functions import normalize
 
-def get_random_hvs(depth: int, matrix_size: int, file_path: Path, length: int, *, device: torch.device, override: bool = False) -> torch.Tensor:
+def get_complex_random_hvs(depth: int, matrix_size: int, file_path: Path, length: int, *, device: torch.device, override: bool = False) -> torch.Tensor:
 	res: torch.Tensor
 	
 	ctx: CheckpointContext = CheckpointContext(f"Random HVs from file {file_path}")
