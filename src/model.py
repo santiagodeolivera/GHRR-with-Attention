@@ -19,11 +19,11 @@ class Model:
 		self.__classes = classes
 	
 	def to_fs(self, root_dir: Path) -> None:
-		for label, class_hv in self.__classes:
+		for label, class_hv in self.__classes.items():
 			torch.save(class_hv, root_dir / f"{label}.pt")
 	
 	@staticmethod
-	def from_fs(self, root_dir: Path) -> "Model":
+	def from_fs(root_dir: Path) -> "Model":
 		class_hv_iter = ( get_class_hv_from_file(path) for path in root_dir.glob("*.pt") )
 		classes: dict[int, torch.Tensor] = dict(class_hv_iter)
 		return Model(classes)
@@ -35,7 +35,7 @@ class Model:
 		for proxy in training_set:
 			label = proxy.label
 			if label not in unnormalized_class_hvs:
-				unnormalized_class_hvs[label] = torch.zeros(D, m, m)
+				unnormalized_class_hvs[label] = torch.zeros(D, m, m, dtype=torch.complex64, device=default_device)
 			
 			new_hv: torch.Tensor = proxy.get_hv()
 			torch.add(unnormalized_class_hvs[label], new_hv, out=unnormalized_class_hvs[label])
@@ -55,7 +55,7 @@ class Model:
 			min_distance: torch.Tensor | None = None
 			closest_label: int = -1
 			
-			for label, class_hv in self.__classes:
+			for label, class_hv in self.__classes.items():
 				distance: torch.Tensor = normalized_similarity(test_batch, class_hv)
 				
 				if min_distance is None or distance.item() < min_distance.item():
@@ -69,17 +69,17 @@ class Model:
 		elif any(x == 0 for x in res_shape):
 			return torch.zeros(res_shape)
 		else:
-			min_distances: torch.Tensor = torch.zeros(*res_shape)
-			closest_labels: torch.Tensor = torch.zeros(*res_shape, dtype=np.int8)
+			min_distances: torch.Tensor = torch.zeros(*res_shape, device=default_device)
+			closest_labels: torch.Tensor = torch.zeros(*res_shape, dtype=torch.int8, device=default_device)
 			defined_vars: bool = False
 			
-			for label, class_hv in self.__classes:
+			for label, class_hv in self.__classes.items():
 				class_hv_2 = class_hv[*((None,) * len(res_shape)), ...].expand(*res_shape, -1, -1, -1)
 				distances: torch.Tensor = normalized_similarity(test_batch, class_hv_2)
 				
 				if not defined_vars:
 					min_distances = distances
-					closest_labels = torch.full(res_shape, label, dtype=np.int8)
+					closest_labels = torch.full(res_shape, label, dtype=torch.int8, device=default_device)
 					defined_vars = True
 					continue
 				

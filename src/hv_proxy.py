@@ -42,12 +42,12 @@ class HVProxy:
 
 # Requires defined mapping from ids to labels
 def iter_from_fs(root: FsOrganizer, ids: Iterable[int]) -> Iterable[HVProxy]:
-	ids_to_labels = get_ids_to_labels_mapping(root)
+	ids_to_labels = get_ids_to_labels_mapping(root.ids_to_labels)
 	return ( f1(id, ids_to_labels, root) for id in ids )
 
 def iter_to_batch(proxies: Sequence[HVProxy, ...]) -> torch.Tensor:
 	length = len(proxies)
-	result = torch.zeros(length, D, m, m)
+	result = torch.zeros(length, D, m, m, dtype=torch.complex64, device=default_device)
 	
 	for i, proxy in enumerate(proxies):
 		proxy.get_hv_on(result[i])

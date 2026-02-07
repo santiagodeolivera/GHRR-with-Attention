@@ -1,6 +1,8 @@
 import time
+import os
+import json
 from random import shuffle as random_shuffle
-from typing import TypeVar, TypeGuard, Callable, Any
+from typing import TypeVar, TypeGuard, Callable, Any, Protocol
 from pathlib import Path
 
 import torch
@@ -75,7 +77,14 @@ def log(value: T, msg: str | None = None, show: bool | Callable[[T], Any] = Fals
 	
 	return value
 
-class CheckpointContext:
+class ICheckpointContext(Protocol):
+	def print(self, msg: str) -> None: ...
+	
+	def log(self, msg: str, value: T) -> T:
+		self.print(msg)
+		return value
+
+class CheckpointContext(ICheckpointContext):
 	name: str
 	start_time: int
 	last_time: int
@@ -89,7 +98,7 @@ class CheckpointContext:
 		if msg is not None:
 			self.print(msg)
 		
-	def print(self, msg: str):
+	def print(self, msg: str) -> None:
 		current_time = time.time_ns()
 		diff_from_start = calc_time_difference(self.start_time, current_time)
 		diff_from_last = calc_time_difference(self.last_time, current_time)
@@ -100,9 +109,9 @@ class CheckpointContext:
 		print(diff_from_start, "since checkpoint context definition")
 		print(msg)
 
-	def log(self, msg: str, value: T) -> T:
-		self.print(msg)
-		return value
+class VoidCheckpointContext(ICheckpointContext):
+	def print(self, msg: str) -> None:
+		pass
 
 def print_tensor_struct(t: torch.Tensor) -> str:
 	v1 = t.dtype

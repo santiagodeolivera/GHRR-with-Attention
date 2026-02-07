@@ -10,29 +10,56 @@ from device import default_device
 from encode_graphs import action_create_hv
 from mutag import define_ids_to_labels_mapping
 from fs_organization import FsOrganizer
-from utils import define_train_and_test_datasets, check_int
+from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int
 from hv_proxy import iter_from_fs as proxies_from_fs, iter_to_batch as proxies_to_batch
 from model import Model
+from process_results import process_results
 
-def train_model(root: FsOrganizer) -> None:
-	train_ids, _ = get_train_and_test_datasets(root.train_and_test_sets_distribution)
-	train_proxies = proxies_from_fs(root, train_ids)
-	trained_model = Model.train(train_proxies)
-	trained_model.to_fs(root.model)
+def distribute_rows(instance_name: str) -> Callable[[FsOrganizer], None]:
+	def inner(root: FsOrganizer) -> None:
+		root.config.model_dir = f"{instance_name}/model"
+		root.config.dist_file = f"{instance_name}/dist_file.json"
+		root.config.result_file = f"{instance_name}/result_file.json"
+		
+		root.setup()
+		
+		define_train_and_test_datasets(root.train_and_test_sets_distribution)
+	
+	return inner
 
-def test_model(root: FsOrganizer) -> None:
-	trained_model = Model.from_fs(root.model)
+def train_model(instance_name: str) -> Callable[[FsOrganizer], None]:
+	def inner(root: FsOrganizer) -> None:
+		root.config.model_dir = f"{instance_name}/model"
+		root.config.dist_file = f"{instance_name}/dist_file.json"
+		root.config.result_file = f"{instance_name}/result_file.json"
+		
+		train_ids, _ = get_train_and_test_datasets(root.train_and_test_sets_distribution)
+		train_proxies = proxies_from_fs(root, train_ids)
+		trained_model = Model.train(train_proxies)
+		trained_model.to_fs(root.model)
 	
-	_, test_ids = tuple(get_train_and_test_datasets(root.train_and_test_sets_distribution))
-	test_proxies = tuple(proxies_from_fs(root, test_ids))
-	test_expected_labels = tuple(proxy.label for proxy in test_proxies)
+	return inner
 	
-	test_data: torch.Tensor = proxies_to_batch(test_proxies)
-	test_result_labels_tensor: torch.Tensor = trained_model.test(test_data)
-	test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_tensor)
+def test_model(instance_name: str) -> Callable[[FsOrganizer], None]:
+	def inner(root: FsOrganizer) -> None:
+		root.config.model_dir = f"{instance_name}/model"
+		root.config.dist_file = f"{instance_name}/dist_file.json"
+		root.config.result_file = f"{instance_name}/result_file.json"
+		
+		trained_model = Model.from_fs(root.model)
+		
+		_, test_ids = tuple(get_train_and_test_datasets(root.train_and_test_sets_distribution))
+		test_proxies = tuple(proxies_from_fs(root, test_ids))
+		test_expected_labels = tuple(proxy.label for proxy in test_proxies)
+		
+		test_data: torch.Tensor = proxies_to_batch(test_proxies)
+		test_result_labels_tensor: torch.Tensor = trained_model.test(test_data)
+		test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_tensor)
 	
-	json_data = json.dumps({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels})
-	root.test_results.write_text(json_data)
+		json_data = json.dumps({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels})
+		root.test_results.write_text(json_data)
+	
+	return inner
 
 encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
 def get_action(id_str: str) -> Callable[[FsOrganizer], None] | None:
@@ -50,13 +77,22 @@ def get_action(id_str: str) -> Callable[[FsOrganizer], None] | None:
 		g_id = id - 1
 		return lambda root: action_create_hv(g_id, root)
 	elif id == 189:
-		return lambda root: define_ids_to_labels_mapping(root.ids_to_labels)
-	elif id == 190:
-		return lambda root: define_train_and_test_datasets(root.train_and_test_sets_distribution)
-	elif id == 191:
-		return train_model
-	elif id == 192:
-		return test_model
+		return lambda root: define_ids_to_labels_mapping(root.tudataset, root.ids_to_labels)
+	elif id < 220:
+		counter = id - 190
+		instance_id = counter // 3
+		instance_step = counter % 3
+		
+		instance_dir = f"instances/{instance_id}"
+		
+		if instance_step == 0:
+			return distribute_rows(instance_dir)
+		elif instance_step == 1:
+			return train_model(instance_dir)
+		elif instance_step == 2:
+			return test_model(instance_dir)
+	elif id == 220:
+		return process_results((f"instances/{x}/result_file.json" for x in range(10)), "results.json")
 	else:
 		return None
 
