@@ -69,22 +69,22 @@ class Model:
 		elif any(x == 0 for x in res_shape):
 			return torch.zeros(res_shape)
 		else:
-			min_distances: torch.Tensor = torch.zeros(*res_shape, device=default_device)
+			max_similarities: torch.Tensor = torch.zeros(*res_shape, device=default_device)
 			closest_labels: torch.Tensor = torch.zeros(*res_shape, dtype=torch.int8, device=default_device)
 			defined_vars: bool = False
 			
 			for label, class_hv in self.__classes.items():
 				class_hv_2 = class_hv[*((None,) * len(res_shape)), ...].expand(*res_shape, -1, -1, -1)
-				distances: torch.Tensor = normalized_similarity(test_batch, class_hv_2)
+				similarities: torch.Tensor = normalized_similarity(test_batch, class_hv_2)
 				
 				if not defined_vars:
-					min_distances = distances
+					max_similarities = similarities
 					closest_labels = torch.full(res_shape, label, dtype=torch.int8, device=default_device)
 					defined_vars = True
 					continue
 				
-				modify_result = distances < min_distances
-				min_distances = torch.where(modify_result, distances, min_distances)
+				modify_result = similarities > max_similarities
+				max_similarities = torch.where(modify_result, similarities, max_similarities)
 				closest_labels = torch.where(modify_result, label, closest_labels)
 			
 			if not defined_vars:

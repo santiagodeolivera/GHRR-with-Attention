@@ -63,14 +63,10 @@ def test_model(instance_name: str) -> Callable[[FsOrganizer], None]:
 
 encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
 def get_action(id_str: str) -> Callable[[FsOrganizer], None] | None:
-	id: int
-	try:
-		id = int(id_str)
-	except ValueError:
-		return None
+	id: int = int(id_str)
 	
 	if id < 0:
-		return None
+		raise ValueError("Out of bounds")
 	elif id == 0:
 		return lambda root: root.setup()
 	elif id < 189:
@@ -94,7 +90,7 @@ def get_action(id_str: str) -> Callable[[FsOrganizer], None] | None:
 	elif id == 220:
 		return process_results((f"instances/{x}/result_file.json" for x in range(10)), "results.json")
 	else:
-		return None
+		raise ValueError("Out of bounds")
 
 def main() -> None:
 	if default_device.type != "cuda":
