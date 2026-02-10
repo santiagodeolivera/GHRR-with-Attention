@@ -5,11 +5,11 @@ import torch
 
 from device import default_device
 from fs_organization import FsOrganizer
-from mutag import get_ids_to_labels_mapping
+from mutag import IdsToLabelsMapping
 from constants import D, m
 
-def f1(id: int, ids_to_labels: tuple[int, ...], root: FsOrganizer) -> "HVProxy":
-	label = ids_to_labels[id]
+def f1(id: int, ids_to_labels: IdsToLabelsMapping, root: FsOrganizer) -> "HVProxy":
+	label = ids_to_labels.label_of(id)
 	path = root.hv_encoding_of(id)
 	return HVProxy(id, label, path)
 
@@ -42,7 +42,7 @@ class HVProxy:
 
 # Requires defined mapping from ids to labels
 def iter_from_fs(root: FsOrganizer, ids: Iterable[int]) -> Iterable[HVProxy]:
-	ids_to_labels = get_ids_to_labels_mapping(root.ids_to_labels)
+	ids_to_labels = IdsToLabelsMapping.from_fs(root.ids_to_labels)
 	return ( f1(id, ids_to_labels, root) for id in ids )
 
 def iter_to_batch(proxies: Sequence[HVProxy, ...]) -> torch.Tensor:

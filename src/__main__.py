@@ -8,7 +8,7 @@ import json
 
 from device import default_device
 from encode_graphs import action_create_hv
-from mutag import define_ids_to_labels_mapping
+from mutag import IdsToLabelsMapping
 from fs_organization import FsOrganizer
 from utils import TrainAndTestDatasetsData, TestResultData, check_int
 from hv_proxy import iter_from_fs as proxies_from_fs, iter_to_batch as proxies_to_batch
@@ -75,7 +75,7 @@ def get_action(id_str: str) -> Callable[[FsOrganizer], None] | None:
 		g_id = id - 1
 		return lambda root: action_create_hv(g_id, root)
 	elif id == 189:
-		return lambda root: define_ids_to_labels_mapping(root.tudataset, root.ids_to_labels)
+		return lambda root: IdsToLabelsMapping.create(root.tudataset).to_fs(root.ids_to_labels)
 	elif id < 220:
 		counter = id - 190
 		instance_id = counter // 3

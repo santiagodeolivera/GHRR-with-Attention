@@ -44,26 +44,36 @@ def get_mutag_dataset(tudataset_dir: Path) -> Iterable[nx.Graph]:
 	graphs = tuple(graph_to_networkx(d) for d in dataset)
 	return graphs
 
-def get_mutag_dataset_labels(tudataset_dir: Path) -> Iterable[int]:
-	dataset: Iterable[Data] = get_dataset(tudataset_dir)
-	ids = tuple(d.y.item() for d in dataset)
-	return ids
-
-def define_ids_to_labels_mapping(tudataset_dir: Path, out_file: Path) -> None:
-	ids = tuple(get_mutag_dataset_labels(tudataset_dir))
-	json_data = json.dumps(ids)
-	out_file.write_text(json_data)
-
-def get_ids_to_labels_mapping(file: Path) -> tuple[int, ...]:
-	json_data = file.read_text()
-	ids = json.loads(json_data)
+class IdsToLabelsMapping:
+	__data: tuple[int, ...]
 	
-	if type(ids) != list:
-		raise Exception()
+	def __init__(self, data: tuple[int, ...]):
+		self.__data = data
 	
-	if any(type(label) != int for label in ids):
-		raise Exception()
+	@staticmethod
+	def create(tudataset_dir: Path) -> "IdsToLabelsMapping":
+		dataset: Iterable[Data] = get_dataset(tudataset_dir)
+		labels = tuple(d.y.item() for d in dataset)
+		return IdsToLabelsMapping(data=labels)
 	
-	return tuple(ids)
+	def to_fs(self, path: Path) -> None:
+		json_data = json.dumps(self.__data)
+		path.write_text(json_data)
 
-__all__ = ["get_mutag_dataset", "define_ids_to_labels_mapping", "get_ids_to_labels_mapping"]
+	@staticmethod
+	def from_fs(path: Path) -> "IdsToLabelsMapping":
+		json_data = path.read_text()
+		labels = json.loads(json_data)
+		
+		if type(labels) != list:
+			raise Exception()
+		
+		if any(type(label) != int for label in labels):
+			raise Exception()
+		
+		return IdsToLabelsMapping(data = tuple(labels))
+	
+	def label_of(self, id: int) -> int:
+		return self.__data[id]
+	
+__all__ = ["get_mutag_dataset", "IdsToLabelsMapping"]
