@@ -10,7 +10,7 @@ from device import default_device
 from encode_graphs import action_create_hv
 from mutag import define_ids_to_labels_mapping
 from fs_organization import FsOrganizer
-from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int
+from utils import TrainAndTestDatasetsData, TestResultData, check_int
 from hv_proxy import iter_from_fs as proxies_from_fs, iter_to_batch as proxies_to_batch
 from model import Model
 from process_results import process_results
@@ -23,7 +23,8 @@ def distribute_rows(instance_name: str) -> Callable[[FsOrganizer], None]:
 		
 		root.setup()
 		
-		define_train_and_test_datasets(root.train_and_test_sets_distribution)
+		distribution = TrainAndTestDatasetsData.create_random()
+		distribution.to_fs(root.train_and_test_sets_distribution)
 	
 	return inner
 
@@ -33,7 +34,7 @@ def train_model(instance_name: str) -> Callable[[FsOrganizer], None]:
 		root.config.dist_file = f"{instance_name}/dist_file.json"
 		root.config.result_file = f"{instance_name}/result_file.json"
 		
-		train_ids, _ = get_train_and_test_datasets(root.train_and_test_sets_distribution)
+		train_ids = TrainAndTestDatasetsData.from_fs(root.train_and_test_sets_distribution).train_ids
 		train_proxies = proxies_from_fs(root, train_ids)
 		trained_model = Model.train(train_proxies)
 		trained_model.to_fs(root.model)
@@ -48,16 +49,17 @@ def test_model(instance_name: str) -> Callable[[FsOrganizer], None]:
 		
 		trained_model = Model.from_fs(root.model)
 		
-		_, test_ids = tuple(get_train_and_test_datasets(root.train_and_test_sets_distribution))
+		test_ids_iterable = TrainAndTestDatasetsData.from_fs(root.train_and_test_sets_distribution).test_ids
+		test_ids = tuple(test_ids_iterable)
 		test_proxies = tuple(proxies_from_fs(root, test_ids))
 		test_expected_labels = tuple(proxy.label for proxy in test_proxies)
 		
 		test_data: torch.Tensor = proxies_to_batch(test_proxies)
 		test_result_labels_tensor: torch.Tensor = trained_model.test(test_data)
 		test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_tensor)
-	
-		json_data = json.dumps({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels})
-		root.test_results.write_text(json_data)
+		
+		result_data = TestResultData(ids=test_ids, expected=test_expected_labels, result=test_result_labels)
+		result_data.to_fs(root.test_results)
 	
 	return inner
 

@@ -4,6 +4,7 @@ import json
 from random import shuffle as random_shuffle
 from typing import TypeVar, TypeGuard, Callable, Any, Protocol
 from pathlib import Path
+from dataclasses import dataclass
 
 import torch
 
@@ -159,39 +160,124 @@ def get_train_and_test_sets_proportion() -> float | None:
 	
 	return float(proportion_str)
 
-def define_train_and_test_datasets(path: Path) -> None:
-	ids: list[int] = list(range(188))
-	proportion = get_train_and_test_sets_proportion()
+@dataclass
+class TrainAndTestDatasetsData:
+	train_ids: Sequence[int, ...]
+	test_ids: Sequence[int, ...]
 	
-	train_ids, test_ids = proportional_split(ids, proportion)
-	json_data = json.dumps({"train": train_ids, "test": test_ids})
+	@staticmethod
+	def create_random() -> "TrainAndTestDatasetsData":
+		ids: list[int] = list(range(188))
+		proportion = get_train_and_test_sets_proportion()
+		
+		train_ids, test_ids = proportional_split(ids, proportion)
+		return TrainAndTestDatasetsData(train_ids=train_ids, test_ids=test_ids)
 	
-	path.write_text(json_data)
+	def to_fs(self, path: Path) -> None:
+		json_data = json.dumps({"train": self.train_ids, "test": self.test_ids})
+		path.write_text(json_data)
+	
+	@staticmethod
+	def from_fs(path: Path) -> "TrainAndTestDatasetsData":
+		json_data = path.read_text()
+		
+		raw_data = json.loads(json_data)
+		
+		if type(raw_data) != dict:
+			raise Exception()
+		if "train" not in raw_data:
+			raise Exception()
+		if "test" not in raw_data:
+			raise Exception()
+		
+		train_ids = raw_data["train"]
+		
+		if type(train_ids) != list:
+			raise Exception()
+		if any(type(x) != int for x in train_ids):
+			raise Exception()
+	
+		test_ids = raw_data["test"]
+		
+		if type(test_ids) != list:
+			raise Exception()
+		if any(type(x) != int for x in test_ids):
+			raise Exception()
+		
+		return TrainAndTestDatasetsData(train_ids=train_ids, test_ids=test_ids)
 
-def get_train_and_test_datasets(path: Path) -> tuple[tuple[int, ...], tuple[int, ...]]:
-	json_data = path.read_text()
+class ConfusionMatrix:
+	__results: dict[tuple[int, int], int]
+	__positive_label: int
 	
-	raw_data = json.loads(json_data)
+	def __init__(self, results: dict[tuple[int, int], int], positive_label: int):
+		self.__results = results
+		self.__positive_label = positive_label
 	
-	if type(raw_data) != dict:
-		raise Exception()
-	if "train" not in raw_data:
-		raise Exception()
-	if "test" not in raw_data:
-		raise Exception()
+	@property
+	def accuracy(self) -> float:
+		return sum(v for (k, v) in self.__results.items() if k[0] == k[1]) \
+			/ sum(self.__results.values())
 	
-	train_ids = raw_data["train"]
+	@property
+	def precision(self) -> float:
+		return sum(v for (k, v) in self.__results.items() if k[0] == k[1] and k[0] == self.__positive_label) \
+			/ sum(v for (k, v) in self.__results.items() if k[1] == self.__positive_label)
 	
-	if type(train_ids) != list:
-		raise Exception()
-	if any(type(x) != int for x in train_ids):
-		raise Exception()
+	@property
+	def recall(self) -> float:
+		return sum(v for (k, v) in self.__results.items() if k[0] == k[1] and k[0] == self.__positive_label) \
+			/ sum(v for (k, v) in self.__results.items() if k[0] == self.__positive_label)
+	
+	@property
+	def f1(self) -> float:
+		precision = self.precision
+		recall = self.recall
+		return 2 * precision * recall / (precision + recall)
 
-	test_ids = raw_data["test"]
+def _check_result_data__inner_f2(v: dict, key: str) -> list[int]:
+	try:
+		value = v.get(key, None)
+		if value is None: raise ValueError()
+		if type(value) != list: raise ValueError()
+		if any(type(x) != int for x in value): raise ValueError()
+		return value
+	except ValueError as e:
+		v1 = json.dumps(key)
+		raise Exception(f"Error while handling key {v1}") from e
+
+def _check_result_data(v: Any) -> tuple[list[int], list[int], list[int]]:
+	if type(v) != dict: raise ValueError()
+	return tuple(_check_result_data__inner_f2(v, key) for key in ("ids", "expected", "result"))
+
+@dataclass
+class TestResultData:
+	ids: Sequence[int, ...]
+	expected: Sequence[int, ...]
+	result: Sequence[int, ...]
 	
-	if type(test_ids) != list:
-		raise Exception()
-	if any(type(x) != int for x in test_ids):
-		raise Exception()
+	def to_fs(self, path: Path) -> None:
+		json_data = json.dumps({"ids": self.ids, "expected": self.expected, "result": self.result})
+		path.write_text(json_data)
 	
-	return (train_ids, test_ids)
+	@staticmethod
+	def from_fs(path: Path) -> "TestResultData":
+		json_data = path.read_text()
+		raw_data = json.loads(json_data)
+		ids, expected, result = _check_result_data(raw_data)
+		return TestResultData(ids=ids, expected=expected, result=result)
+	
+	def to_conf_matrix(self) -> ConfusionMatrix:
+		conf_matrix_dict: dict[tuple[int, int], int] = dict()
+		
+		for i in range(len(self.expected)):
+			expected = self.expected[i]
+			result = self.result[i]
+			key = (expected, result)
+			
+			if key not in conf_matrix_dict:
+				conf_matrix_dict[key] = 0
+			
+			conf_matrix_dict[key] += 1
+	
+		return ConfusionMatrix(conf_matrix_dict, positive_label=1)
