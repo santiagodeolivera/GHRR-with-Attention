@@ -1,5 +1,5 @@
 import json
-from typing import Iterable, Callable, Sequence
+from typing import Iterable, Callable, Sequence, Any
 from math import sqrt
 from pathlib import Path
 
