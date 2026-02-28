@@ -8,6 +8,7 @@ In order for the program to be executable, it's divided into several steps, each
 
 1. Make sure all requirements are installed (check the requirements.txt file).
 2. Set up the following environment variables:
+    * `PROGRAM_ID`: The ID of the program to be executed.
     * `ACTION_ID`: The ID of the step to be executed.
     * `ROOT_DIR`: The path to the root directory where the intermediate files will be stored.
     * `MEM_HISTORY_OUT`: (Optional) The path to export the GPU memory history during the execution.
@@ -20,6 +21,7 @@ It can only be done in Windows or Linux operating systems.
 
 1. Make sure all requirements are installed (check the requirements.txt file).
 2. Set up the following environment variables:
+    * `PROGRAM_ID`: The ID of the program to be executed.
     * `START`: The ID of the first step to be executed.
     * `END`: The ID of the last step to be executed.
     * `ROOT_DIR`: The path to the root directory where the intermediate files will be stored.

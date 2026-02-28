@@ -1,3 +1,5 @@
 D = 8000
 m = 28
 
+F2_SAMPLE_SIZE = 20
+

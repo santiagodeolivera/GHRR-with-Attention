@@ -6,6 +6,7 @@ from hv_proxy import HVProxy, iter_from_fs as proxies_from_fs
 from fs_organization import FsOrganizer
 from utils import take_random_from_list, approximation
 from hv_functions import normalized_similarity
+from constants import F2_SAMPLE_SIZE
 
 def get_split_ids_by_label(root: FsOrganizer) -> dict[int, list[HVProxy]]:
     proxies = tuple(proxies_from_fs(root, range(188)))
@@ -23,7 +24,7 @@ def func(root: FsOrganizer) -> None:
     
     samples: dict[int, list[HVProxy]] = get_split_ids_by_label(root)
     for label in samples.keys():
-        samples[label] = take_random_from_list(samples[label], 5)
+        samples[label] = take_random_from_list(samples[label], F2_SAMPLE_SIZE)
     
     hv1: torch.Tensor | None = None
     hv2: torch.Tensor | None = None
