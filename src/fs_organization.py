@@ -39,7 +39,7 @@ class FsOrganizer:
 		
 		self.ids_to_labels.parent.mkdir(parents=True, exist_ok=True)
 		self.train_and_test_sets_distribution.parent.mkdir(parents=True, exist_ok=True)
-		self.test_results.parent.mkdir(parents=True, exist_ok=True)
+		self.result_file.parent.mkdir(parents=True, exist_ok=True)
 	
 	@property
 	def root(self) -> Path:
@@ -89,5 +89,5 @@ class FsOrganizer:
 		return self.__root / self.config.model_dir
 	
 	@property
-	def test_results(self):
+	def result_file(self):
 		return self.__root / self.config.result_file

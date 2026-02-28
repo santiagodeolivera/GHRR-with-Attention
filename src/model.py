@@ -57,7 +57,7 @@ class Model:
 			closest_label: int = -1
 			
 			for label, class_hv in self.__classes.items():
-				distance: torch.Tensor = normalized_similarity(test_batch, class_hv)
+				distance: torch.Tensor = normalized_similarity(test_batch, class_hv, batch_size=10)
 				
 				if min_distance is None or distance.item() < min_distance.item():
 					min_distance = distance
@@ -76,7 +76,7 @@ class Model:
 			
 			for label, class_hv in self.__classes.items():
 				class_hv_2 = class_hv[*((None,) * len(res_shape)), ...].expand(*res_shape, -1, -1, -1)
-				similarities: torch.Tensor = normalized_similarity(test_batch, class_hv_2)
+				similarities: torch.Tensor = normalized_similarity(test_batch, class_hv_2, batch_size=10)
 				
 				if not defined_vars:
 					max_similarities = similarities

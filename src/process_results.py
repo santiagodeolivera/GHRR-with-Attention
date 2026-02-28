@@ -1,9 +1,9 @@
 import json
 from typing import Iterable, Callable, Sequence, Any
-from math import sqrt
 from pathlib import Path
 
 from fs_organization import FsOrganizer
+from utils import approximation
 
 class ConfusionMatrix:
 	__results: dict[tuple[int, int], int]
@@ -34,12 +34,6 @@ class ConfusionMatrix:
 		recall = self.recall
 		return 2 * precision * recall / (precision + recall)
 
-def approximation(numbers: Sequence[float]) -> str:
-	n = len(numbers)
-	avg = sum(numbers) / n
-	std = sqrt(sum((x - avg)**2 for x in numbers) / n)
-	return f"{avg*100:.02f}% \u00B1 {std*100:.02f}%"
-
 def check_result_data(v: Any) -> tuple[list[int], list[int], list[int]]:
 	if type(v) != dict: raise ValueError()
 	
@@ -58,7 +52,7 @@ def check_result_data(v: Any) -> tuple[list[int], list[int], list[int]]:
 
 def f1(root: FsOrganizer, instance_dir: str) -> ConfusionMatrix:
 	root.config.result_file = instance_dir
-	result_file = root.test_results
+	result_file = root.result_file
 	json_data = result_file.read_text()
 	raw_data = json.loads(json_data)
 	_, expected_list, result_list = check_result_data(raw_data)
