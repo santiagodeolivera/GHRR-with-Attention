@@ -153,7 +153,7 @@ def proportional_split(input: list[T], proportion: float) -> tuple[tuple[T, ...]
     right = tuple(input[pivot:])
     return (left, right)
 
-def get_train_and_test_sets_proportion() -> float | None:
+def get_train_and_test_sets_proportion() -> float:
     proportion_str = os.environ.get("PROPORTION", None)
     if proportion_str is None:
         raise Exception("Proportion not defined")

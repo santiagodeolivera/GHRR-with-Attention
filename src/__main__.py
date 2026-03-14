@@ -15,6 +15,7 @@ from hv_proxy import iter_from_fs as proxies_from_fs, iter_to_batch as proxies_t
 from model import Model
 from process_results import process_results
 from f2 import func as f2_function
+from f3 import get_action as get_f3_action
 
 def distribute_rows(instance_name: str) -> Callable[[FsOrganizer], None]:
     def inner(root: FsOrganizer) -> None:
@@ -100,6 +101,13 @@ def get_action(program_id: int, action_id: int) -> Callable[[FsOrganizer], None]
             return f2_function
         else:
             raise ValueError("Out of bounds")
+    elif program_id == 3:
+        if action_id < 0:
+            raise ValueError("Out of bounds")
+        elif action_id < 221:
+            return get_action(1, action_id)
+        else:
+            return get_f3_action(action_id - 221)
     else:
         raise ValueError("Unknown program id")
 
