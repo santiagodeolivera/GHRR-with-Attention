@@ -1,0 +1,9 @@
+There is a central class, which controls the memory. The methods it has is:
+    Clean all memory
+    Get remaining memory
+    Load tensor (or a slice of it) from file to GPU
+    Dump tensor (or a slice of it) from GPU to file
+    Allocate new empty tensor (for the "out" parameter of many torch operations)
+    Deallocate tensor
+
+There is a class, whose job is to remember in which order files have to be calculated, and how to do it.
