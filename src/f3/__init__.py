@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from utils import approximation as get_approximation
+import shutil
 
 def get_parameter(name: str) -> str:
     result = os.environ.get(name, None)
@@ -15,6 +16,11 @@ def get_parameter(name: str) -> str:
 
 def execute_graphhd(root: FsOrganizer) -> None:
     counter = 0
+    
+    output_root = root.root / "comparisons"
+    shutil.rmtree(output_root, ignore_errors=True)
+    output_root.mkdir(parents=True)
+    
     for instance_id in range(10):
         root.config.dist_file = f"instances/{instance_id}/dist_file.json"
         graphhd_root = Path(get_parameter("GRAPH_HD_ROOT"))
@@ -28,11 +34,27 @@ def execute_graphhd(root: FsOrganizer) -> None:
         
         for graphhd_result_path in (graphhd_root / "individual_results").iterdir():
             with open(graphhd_result_path, "r") as graphhd_result_file:
-                # {"dataset": str, "enc_name": str, "metric": str, "iteration": int, "predictions": int[]}
+                # {"dataset": str, "enc_name": str, "metric": str, "iteration": int, \
+                # "ids": int[], "expected": int[], "result": int[]}
                 graphhd_result = json.load(graphhd_result_file)
-            graphhd_predictions = tuple((1 if x == 1 else 0) for x in graphhd_result["predictions"])
+            graphhd_result["expected"] = [(1 if x == 1 else 0) for x in graphhd_result["expected"]]
+            graphhd_result["result"] = [(1 if x == 1 else 0) for x in graphhd_result["result"]]
+            
+            graphhd_predictions = graphhd_result["result"]
             coincidences = tuple(graphhd_predictions[i] == ghrr_predictions[i] \
                     for i in range(len(ghrr_predictions)))
+            total_coincidences = sum(1 for x in coincidences if x)
+            
+            if ghrr_result["ids"] != graphhd_result["ids"]:
+                print("GHRR ids:", ghrr_result["ids"])
+                print("GraphHD ids:", graphhd_result["ids"])
+                raise Exception()
+
+            if ghrr_result["expected"] != graphhd_result["expected"]:
+                print("GHRR expected:", ghrr_result["expected"])
+                print("GraphHD expected:", graphhd_result["expected"])
+                raise Exception()
+            
             result_data = {
                 "ghrr_id": instance_id,
                 "graphhd_id": {
@@ -45,12 +67,11 @@ def execute_graphhd(root: FsOrganizer) -> None:
                 "ghrr_result": ghrr_predictions,
                 "graphhd_result": graphhd_predictions,
                 "coincidences": coincidences,
-                "total_coincidences": sum(1 for x in coincidences if x),
-                "proportion_coincidences": sum(1 for x in coincidences if x) / len(coincidences)
+                "total_coincidences": total_coincidences,
+                "proportion_coincidences": total_coincidences / len(coincidences)
             }
             
-            output_path = root.root / f"comparisons/{counter}.json"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path = output_root / f"{counter}.json"
             print(f"Printing to {output_path}")
             
             with open(output_path, "w") as output_file:
