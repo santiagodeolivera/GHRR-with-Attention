@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from functools import reduce
 import os
 from pathlib import Path
-from contextlib import ExitStack
 from typing import Iterable
 
 import torch
@@ -86,7 +85,7 @@ class MemoryManager:
     # Records must always be ordered by start index
     __records: list[TensorPointer]
     __max_mem: int
-    __tensor: torch.Tensor
+    __tensor: torch.Tensor | None
     
     def __init__(self, tensor: torch.Tensor, max_mem: int) -> None:
         self.__records = []
@@ -96,6 +95,13 @@ class MemoryManager:
     @property
     def max_mem(self) -> int:
         return self.__max_mem
+    
+    @property
+    def __present_tensor(self) -> torch.Tensor:
+        if self.__tensor is None:
+            raise Exception()
+        
+        return self.__tensor
     
     @staticmethod
     def get() -> "MemoryManager":
@@ -139,7 +145,7 @@ class MemoryManager:
             min_pos = self.__records[i].end if i >= 0 else 0
             max_pos = self.__records[i + 1].start if i + 1 < rec_len else self.__max_mem
             if length <= max_pos - min_pos:
-                new_record = TensorPointer(min_pos, length, self, self.__tensor[min_pos : min_pos + length].view(*shape))
+                new_record = TensorPointer(min_pos, length, self, self.__present_tensor[min_pos : min_pos + length].view(*shape))
                 self.__records.insert(i + 1, new_record)
                 return new_record
         
@@ -160,7 +166,7 @@ class MemoryManager:
     def __enter__(self) -> "MemoryManager":
         return self
     
-    def __exit__(self) -> None
+    def __exit__(self, exc_t, exc_v, exc_tb) -> None:
         global memory_manager_cache
         memory_manager_cache = False
         
@@ -168,45 +174,5 @@ class MemoryManager:
         self.__tensor = None
         torch.cuda.empty_cache()
 
-def test() -> None:
-    root = Path(__file__).resolve().parent.parent
-    print("Defining manager")
-    shape = (10, 10, 10)
-    
-    with MemoryManager.get() as manager:
-        with ExitStack() as stack:
-            print("Allocating memory")
-            t1, t2, t3 = tuple(
-                stack.enter_context(
-                    manager.empty(shape)
-                ) for _ in range(3)
-            )
-            
-            print("Creating random tensors")
-            torch.randn(*shape, out=t1.tensor)
-            t1.to_fs(root / "test_outputs/t1.pt")
-            
-            torch.randn(*shape, out=t2.tensor)
-            t2.to_fs(root / "test_outputs/t2.pt")
-            
-            print("Adding tensors")
-            torch.add(t1.tensor, t2.tensor, out=t3.tensor)
-            t3.to_fs(root / "test_outputs/t3.pt")
-
-        with ExitStack() as stack:
-            print("Loading tensors")
-            t1, t2, t3 = tuple(
-                stack.enter_context(
-                    manager.load(root / f"test_outputs/t{n}.pt")
-                ) for n in range(1, 4)
-            )
-            
-            print("Adding tensors")
-            torch.add(t1.tensor, t2.tensor, out=t1.tensor)
-            
-            print("Evaluating result")
-            if not torch.equal(t1.tensor, t3.tensor):
-                raise Exception("Addition check failed")
-
-__all__ = ["MemoryManager", "save_tensor", "test"]
+__all__ = ["MemoryManager", "save_tensor"]
 

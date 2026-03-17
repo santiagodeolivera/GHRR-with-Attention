@@ -1,8 +1,10 @@
 from pathlib import Path
 import json
 
-from memory import TensorPointer
-from constants import element_type
+import torch
+
+from memory import TensorPointer, MemoryManager
+from constants import element_type, SliceInfo
 
 class TensorProxy:
     __path: Path

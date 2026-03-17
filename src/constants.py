@@ -1,6 +1,8 @@
 from builtins import slice
 
+import torch
+
 element_type = torch.complex64
 
-type SliceInfo = tuple[int | slice, ...]
+type SliceInfo = tuple[slice[int, int, int], ...]
 

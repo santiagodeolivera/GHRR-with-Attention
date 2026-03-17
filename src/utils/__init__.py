@@ -5,3 +5,5 @@ T = TypeVar("T")
 def block(fn: Callable[[], T]) -> T:
     return fn()
 
+__all__ = ["block"]
+

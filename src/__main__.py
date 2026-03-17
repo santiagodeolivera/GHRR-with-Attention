@@ -1,7 +1,7 @@
-from memory import test
+from tests import all_tests
 
 def main():
-    test()
+    all_tests()
 
 if __name__ == "__main__":
     main()
