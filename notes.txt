@@ -7,3 +7,4 @@ There is a central class, which controls the memory. The methods it has is:
     Deallocate tensor
 
 There is a class, whose job is to remember in which order files have to be calculated, and how to do it.
+
