@@ -1,52 +1,28 @@
 from pathlib import Path
 from contextlib import ExitStack
+from typing import Callable
 
 import torch
 
-from memory import MemoryManager
+import tensor_functions as F
 
-def memory_test() -> None:
-    root = Path(__file__).resolve().parent.parent
-    print("Defining manager")
-    shape = (10, 10, 10)
+def addition_test() -> None:
+    root = Path(__file__).resolve().parent.parent / "test_outputs"
     
-    with MemoryManager.get() as manager:
-        with ExitStack() as stack:
-            print("Allocating memory")
-            t1, t2, t3 = tuple(
-                stack.enter_context(
-                    manager.empty(shape)
-                ) for _ in range(3)
-            )
-            
-            print("Creating random tensors")
-            torch.randn(*shape, out=t1.tensor)
-            t1.to_fs(root / "test_outputs/t1.pt")
-            
-            torch.randn(*shape, out=t2.tensor)
-            t2.to_fs(root / "test_outputs/t2.pt")
-            
-            print("Adding tensors")
-            torch.add(t1.tensor, t2.tensor, out=t3.tensor)
-            t3.to_fs(root / "test_outputs/t3.pt")
+    p1 = F.randn((10, 10, 10, 10, 10), root / "1")
+    p2 = F.randn((10, 10, 10, 10, 10), root / "2")
+    p3 = F.addition(p1, p2, out=root / "3")
+    
+    t1 = p1.tensor()
+    t2 = p2.tensor()
+    t3 = p3.tensor()
+    
+    result = t1 + t2
+    if not torch.allclose(t3, result):
+        raise Exception()
 
-        with ExitStack() as stack:
-            print("Loading tensors")
-            t1, t2, t3 = tuple(
-                stack.enter_context(
-                    manager.load(root / f"test_outputs/t{n}.pt")
-                ) for n in range(1, 4)
-            )
-            
-            print("Adding tensors")
-            torch.add(t1.tensor, t2.tensor, out=t1.tensor)
-            
-            print("Evaluating result")
-            if not torch.equal(t1.tensor, t3.tensor):
-                raise Exception("Addition check failed")
-
-tests = {
-    "memory": memory_test
+tests: dict[str, Callable[[], None]] = {
+    "addition": addition_test
 }
 
 def all_tests() -> None:

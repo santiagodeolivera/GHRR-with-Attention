@@ -4,7 +4,8 @@ import json
 import torch
 
 from memory import TensorPointer, MemoryManager
-from constants import element_type, SliceInfo
+from constants import element_type, SliceInfo, element_size
+from utils import get_size
 
 class TensorProxy:
     __path: Path
@@ -14,11 +15,13 @@ class TensorProxy:
     
     @staticmethod
     def empty(shape: tuple[int, ...], path: Path) -> "TensorProxy":
-        tensor_path = path.with_suffix(".pt")
+        tensor_path = path.with_suffix(".bin")
         shape_path = path.with_suffix(".json")
         
-        template = torch.tensor(0, dtype=element_type).broadcast_to(shape)
-        torch.save(template, tensor_path)
+        length = get_size(shape)
+        with open(tensor_path, "wb") as f:
+            for _ in range(length * element_size):
+                f.write(b'\x00')
         
         with open(shape_path, "w") as f:
             json.dump(shape, f)
@@ -26,16 +29,16 @@ class TensorProxy:
         return TensorProxy(path)
     
     @property
-    def __tensor_data(self) -> Path:
-        return self.__path.with_suffix(".pt")
+    def __data_path(self) -> Path:
+        return self.__path.with_suffix(".bin")
     
     @property
-    def __shape_data(self) -> Path:
+    def __shape_path(self) -> Path:
         return self.__path.with_suffix(".json")
     
     @property
     def shape(self) -> tuple[int, ...]:
-        src = self.__shape_data
+        src = self.__shape_path
         
         with open(src, "r") as f:
             data = json.load(f)
@@ -45,12 +48,12 @@ class TensorProxy:
         
         raise Exception(f"File {src} has invalid shape information")
     
-    def load(self, slice_info: SliceInfo | None = None) -> TensorPointer:
-        manager = MemoryManager.get()
-        return manager.load(self.__path, slice_info)
+    @property
+    def size(self) -> int:
+        return get_size(self.shape)
     
-    def save(self, tensor: TensorPointer, slice_info: SliceInfo | None = None) -> None:
-        tensor.to_fs(self.__path, slice_info)
+    def tensor(self) -> torch.Tensor:
+        return torch.from_file(str(self.__data_path), size=self.size, shared=True, dtype=element_type).view(self.shape)
 
 __all__ = ["TensorProxy"]
 

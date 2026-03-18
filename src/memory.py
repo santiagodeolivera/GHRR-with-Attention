@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import reduce
 import os
 from pathlib import Path
 from typing import Iterable
@@ -7,6 +6,7 @@ from typing import Iterable
 import torch
 
 from constants import SliceInfo, element_type
+from utils import get_size
 
 def get_file_tensor(path: str | os.PathLike, slice_info: SliceInfo | None) -> torch.Tensor:
     base = torch.load(path, map_location="cpu", mmap=True)
@@ -111,10 +111,6 @@ class MemoryManager:
         if memory_manager_cache is False:
             raise Exception("Cannot create MemoryManager more than once")
         
-        if not torch.cuda.is_available():
-            raise Exception("CUDA is not available")
-        
-        torch.set_default_device("cuda:0")
         total_memory = torch.cuda.get_device_properties(0).total_memory
         max_mem_allowed = total_memory // 8 // 2
         
@@ -137,8 +133,8 @@ class MemoryManager:
         memory_manager_cache = result
         return result
     
-    def empty(self, shape: tuple[int, ...]) -> TensorPointer:
-        length = reduce(lambda a, b: a * b, shape, 1)
+    def alloc(self, shape: tuple[int, ...]) -> TensorPointer:
+        length = get_size(shape)
         rec_len = len(self.__records)
         
         for i in range(-1, rec_len):
@@ -150,12 +146,6 @@ class MemoryManager:
                 return new_record
         
         raise Exception(f"Not enough memory for new tensor of shape {shape}")
-    
-    def load(self, path: str | os.PathLike, slice_info: SliceInfo | None = None) -> TensorPointer:
-        src_tensor = get_file_tensor(path, slice_info)
-        result = self.empty(src_tensor.shape)
-        result.tensor[...] = src_tensor
-        return result
     
     def _remove_proxy(self, proxy: TensorPointer) -> None:
         for i in range(len(self.__records)):
