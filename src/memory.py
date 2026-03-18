@@ -1,94 +1,18 @@
 from dataclasses import dataclass
 import os
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import torch
 
-from constants import SliceInfo, element_type
+from constants import SliceInfo, element_type, element_size
 from utils import get_size
 
-def get_file_tensor(path: str | os.PathLike, slice_info: SliceInfo | None) -> torch.Tensor:
-    base = torch.load(path, map_location="cpu", mmap=True)
-    if slice_info is None:
-        return base
-    else:
-        return base[*slice_info]
-
-def save_tensor(tensor: torch.Tensor, path: str | os.PathLike, slice_info: SliceInfo | None = None) -> None:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    
-    if slice_info is None:
-        torch.save(tensor, path)
-        return
-    
-    src_tensor = get_file_tensor(path, slice_info)
-    src_tensor[...] = tensor
-    
-    with open(path, "r+b") as f:
-        f.flush()
-        os.fsync(f.fileno())
-
-@dataclass
-class TensorPointer:
-    __start: int
-    __length: int
-    __parent: "MemoryManager"
-    __tensor: torch.Tensor | None
-    
-    def __init__(self, start: int, length: int, parent: "MemoryManager", tensor: torch.Tensor) -> None:
-        self.__start = start
-        self.__length = length
-        self.__parent = parent
-        self.__tensor = tensor
-    
-    @property
-    def start(self) -> int:
-        return self.__start
-    
-    @property
-    def length(self) -> int:
-        return self.__length
-    
-    @property
-    def end(self) -> int:
-        return self.__start + self.__length
-    
-    @property
-    def tensor(self) -> torch.Tensor:
-        if self.__tensor is None:
-            raise Exception("Trying to get tensor on a freed proxy")
-        
-        return self.__tensor
-    
-    def to_fs(self, path: str | os.PathLike, slice_info: SliceInfo | None = None) -> None:
-        save_tensor(self.tensor, path, slice_info)
-    
-    def load(self, path: str | os.PathLike, slice_info: SliceInfo | None = None) -> None:
-        src_tensor = get_file_tensor(path, slice_info)
-        if src_tensor.shape != self.tensor.shape:
-            raise Exception(f"Attempted to load a {src_tensor.shape} file tensor into a {self.tensor.shape} GPU tensor.")
-        self.tensor[...] = src_tensor
-    
-    def __enter__(self) -> "TensorPointer":
-        return self
-    
-    def __exit__(self, exc_t, exc_v, exc_tb) -> None:
-        self.__parent._remove_proxy(self)
-        self.__tensor = None
-        self.__start = 0
-        self.__length = 0
-
-memory_manager_cache: "MemoryManager | bool" = True
-max_mem_options: int | Iterable[int] = 3000
 class MemoryManager:
-    # Records must always be ordered by start index
-    __records: list[TensorPointer]
     __max_mem: int
     __tensor: torch.Tensor | None
     
     def __init__(self, tensor: torch.Tensor, max_mem: int) -> None:
-        self.__records = []
         self.__max_mem = max_mem
         self.__tensor = tensor
     
@@ -97,72 +21,53 @@ class MemoryManager:
         return self.__max_mem
     
     @property
-    def __present_tensor(self) -> torch.Tensor:
+    def tensor(self) -> torch.Tensor:
         if self.__tensor is None:
             raise Exception()
         
         return self.__tensor
     
     @staticmethod
-    def get() -> "MemoryManager":
+    def create(max_mem: int) -> "MemoryManager":
         global memory_manager_cache
         global max_mem_options
-        if not isinstance(memory_manager_cache, bool): return memory_manager_cache
-        if memory_manager_cache is False:
-            raise Exception("Cannot create MemoryManager more than once")
         
         total_memory = torch.cuda.get_device_properties(0).total_memory
-        max_mem_allowed = total_memory // 8 // 2
+        max_mem_allowed = total_memory // (element_size * 2)
         
-        max_mem: int | None = None
-        if isinstance(max_mem_options, int):
-            if max_mem_options <= max_mem_allowed:
-                max_mem = max_mem_options
-        else:
-            for option in sorted(max_mem_options, reverse=True):
-                if option <= max_mem_allowed:
-                    max_mem = option
-                    break
-        
-        if max_mem is None:
+        if max_mem > max_mem_allowed:
             raise Exception(f"Not enough GPU memory.")
         
-        tensor = torch.empty(max_mem, dtype=element_type)
+        tensor = torch.empty(max_mem, dtype=element_type, device="cuda:0")
         
         result = MemoryManager(tensor, max_mem)
-        memory_manager_cache = result
         return result
     
-    def alloc(self, shape: tuple[int, ...]) -> TensorPointer:
-        length = get_size(shape)
-        rec_len = len(self.__records)
+    def alloc_tensors(self, shapes0: Iterable[tuple[int, ...]]) -> tuple[torch.Tensor, ...]:
+        shapes: Sequence[tuple[int, ...]] = tuple(shapes0)
         
-        for i in range(-1, rec_len):
-            min_pos = self.__records[i].end if i >= 0 else 0
-            max_pos = self.__records[i + 1].start if i + 1 < rec_len else self.__max_mem
-            if length <= max_pos - min_pos:
-                new_record = TensorPointer(min_pos, length, self, self.__present_tensor[min_pos : min_pos + length].view(*shape))
-                self.__records.insert(i + 1, new_record)
-                return new_record
+        sizes = tuple(get_size(shape) for shape in shapes)
+        required_size = sum(sizes)
+        if required_size > self.max_mem:
+            raise Exception("Not enough memory")
         
-        raise Exception(f"Not enough memory for new tensor of shape {shape}")
-    
-    def _remove_proxy(self, proxy: TensorPointer) -> None:
-        for i in range(len(self.__records)):
-            if id(i) == id(proxy):
-                del self.__records[i]
-                return
+        result: list[torch.Tensor] = []
+        start = 0
+        for shape, size in zip(shapes, sizes):
+            new_tensor = self.tensor[start : start + size].view(shape)
+            result.append(new_tensor)
+            start += size
+        
+        return tuple(result)
+        
     
     def __enter__(self) -> "MemoryManager":
         return self
     
     def __exit__(self, exc_t, exc_v, exc_tb) -> None:
-        global memory_manager_cache
-        memory_manager_cache = False
-        
         del self.__tensor
         self.__tensor = None
         torch.cuda.empty_cache()
 
-__all__ = ["MemoryManager", "save_tensor"]
+__all__ = ["MemoryManager"]
 

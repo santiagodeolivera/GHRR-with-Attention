@@ -3,9 +3,15 @@ import json
 
 import torch
 
-from memory import TensorPointer, MemoryManager
+from memory import MemoryManager
 from constants import element_type, SliceInfo, element_size
 from utils import get_size
+
+def path_to_data(path: Path) -> Path:
+    return path.with_suffix(".bin")
+
+def path_to_shape(path: Path) -> Path:
+    return path.with_suffix(".json")
 
 class TensorProxy:
     __path: Path
@@ -15,8 +21,11 @@ class TensorProxy:
     
     @staticmethod
     def empty(shape: tuple[int, ...], path: Path) -> "TensorProxy":
-        tensor_path = path.with_suffix(".bin")
-        shape_path = path.with_suffix(".json")
+        if TensorProxy.exists(path):
+            raise Exception(f"TensorProxy in {path} already exists")
+        
+        tensor_path = path_to_data(path)
+        shape_path = path_to_shape(path)
         
         length = get_size(shape)
         with open(tensor_path, "wb") as f:
@@ -30,11 +39,11 @@ class TensorProxy:
     
     @property
     def __data_path(self) -> Path:
-        return self.__path.with_suffix(".bin")
+        return path_to_data(self.__path)
     
     @property
     def __shape_path(self) -> Path:
-        return self.__path.with_suffix(".json")
+        return path_to_shape(self.__path)
     
     @property
     def shape(self) -> tuple[int, ...]:
@@ -54,6 +63,20 @@ class TensorProxy:
     
     def tensor(self) -> torch.Tensor:
         return torch.from_file(str(self.__data_path), size=self.size, shared=True, dtype=element_type).view(self.shape)
+    
+    @staticmethod
+    def exists(path: Path) -> bool:
+        data_path = path_to_data(path)
+        shape_path = path_to_shape(path)
+        
+        return data_path.exists() and data_path.is_file() and shape_path.exists() and shape_path.is_file()
+    
+    @staticmethod
+    def get_if_exists(path: Path) -> "TensorProxy | None":
+        if TensorProxy.exists(path):
+            return None
+        
+        return TensorProxy(path)
 
 __all__ = ["TensorProxy"]
 

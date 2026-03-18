@@ -6,8 +6,6 @@ from constants import element_type
 def main():
     if not torch.cuda.is_available():
         raise Exception("CUDA is not available")
-
-    torch.set_default_device("cuda:0")
     
     all_tests()
 
