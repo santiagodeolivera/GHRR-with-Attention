@@ -1,24 +1,30 @@
 from dataclasses import dataclass
 import os
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Any
 
 import torch
 
-from constants import SliceInfo, element_type, element_size
+from constants import SliceInfo, DataType
 from utils import get_size
 
 class MemoryManager:
     __max_mem: int
     __tensor: torch.Tensor | None
-    
-    def __init__(self, tensor: torch.Tensor, max_mem: int) -> None:
+    __data_type: DataType
+
+    def __init__(self, tensor: torch.Tensor, max_mem: int, data_type: DataType) -> None:
         self.__max_mem = max_mem
         self.__tensor = tensor
+        self.__data_type = data_type
     
     @property
     def max_mem(self) -> int:
         return self.__max_mem
+    
+    @property
+    def data_type(self) -> DataType:
+        return self.__data_type
     
     @property
     def tensor(self) -> torch.Tensor:
@@ -28,19 +34,9 @@ class MemoryManager:
         return self.__tensor
     
     @staticmethod
-    def create(max_mem: int) -> "MemoryManager":
-        global memory_manager_cache
-        global max_mem_options
-        
-        total_memory = torch.cuda.get_device_properties(0).total_memory
-        max_mem_allowed = total_memory // (element_size * 2)
-        
-        if max_mem > max_mem_allowed:
-            raise Exception(f"Not enough GPU memory.")
-        
-        tensor = torch.empty(max_mem, dtype=element_type, device="cuda:0")
-        
-        result = MemoryManager(tensor, max_mem)
+    def create(max_mem: int, data_type: DataType) -> "MemoryManager":
+        tensor = torch.empty(max_mem, dtype=data_type.value, device="cuda:0")
+        result = MemoryManager(tensor, max_mem, data_type)
         return result
     
     def alloc_tensors(self, shapes0: Iterable[tuple[int, ...]]) -> tuple[torch.Tensor, ...]:

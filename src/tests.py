@@ -1,23 +1,25 @@
 from pathlib import Path
-from contextlib import ExitStack
 from typing import Callable
 from dataclasses import dataclass
+import shutil
 
 import torch
 
 from memory import MemoryManager
 from tensor_functions import TensorFunctionsManager
+from constants import DataType
 
 @dataclass
 class TestContext:
     fns_manager: TensorFunctionsManager
+    root: Path
 
 def addition_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
-    root = Path(__file__).resolve().parent.parent / "test_outputs"
+    root = ctx.root
     
-    p1 = fns.randn((10, 10, 10, 10, 10), root / "a1")
-    p2 = fns.randn((10, 10, 10, 10, 10), root / "a2")
+    p1 = fns.randn((10, 10, 10, 10, 10), root / "a1", DataType.complex64)
+    p2 = fns.randn((10, 10, 10, 10, 10), root / "a2", DataType.complex64)
     p3 = fns.addition(p1, p2, out=root / "a3")
     
     t1 = p1.tensor()
@@ -30,10 +32,10 @@ def addition_test(ctx: TestContext) -> None:
 
 def matrix_mult_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
-    root = Path(__file__).resolve().parent.parent / "test_outputs"
+    root = ctx.root
     
-    p1 = fns.randn((5, 4, 3, 10, 2), root / "mm1")
-    p2 = fns.randn((5, 4, 3, 2, 4), root / "mm2")
+    p1 = fns.randn((5, 4, 3, 10, 2), root / "mm1", DataType.complex64)
+    p2 = fns.randn((5, 4, 3, 2, 4), root / "mm2", DataType.complex64)
     p3 = fns.matrix_mult(p1, p2, out=root / "mm3")
     
     t1 = p1.tensor()
@@ -44,9 +46,46 @@ def matrix_mult_test(ctx: TestContext) -> None:
     if not torch.allclose(t3, result):
         raise Exception()
 
+def softmax_test(ctx: TestContext) -> None:
+    fns = ctx.fns_manager
+    root = ctx.root
+    
+    p1 = fns.randn((5, 4, 2, 3, 10), root / "softmax1", DataType.float32)
+    p2 = fns.softmax(p1, root / "softmax2")
+    
+    t1 = p1.tensor()
+    t2 = p2.tensor()
+    
+    result = torch.nn.functional.softmax(t1, dim=-1)
+    if not torch.allclose(t2, result):
+        raise Exception()
+
+def summation_test(ctx: TestContext) -> None:
+    fns = ctx.fns_manager
+    root = ctx.root
+    
+    p1 = fns.randn((5, 4, 2, 3, 10), root / "summation", DataType.complex64)
+    p2 = fns.summation(p1, 1, root / "summation2")
+    p3 = fns.summation(p1, 2, root / "summation3")
+    
+    t1 = p1.tensor()
+    t2 = p2.tensor()
+    t3 = p3.tensor()
+    
+    result2 = t1.sum(dim=-1)
+    result3 = t1.sum(dim=(-1, -2))
+    
+    if not torch.allclose(t2, result2):
+        raise Exception()
+    
+    if not torch.allclose(t3, result3):
+        raise Exception()
+
 tests: dict[str, Callable[[TestContext], None]] = {
     "addition": addition_test,
-    "matrix_mult": matrix_mult_test
+    "matrix_mult": matrix_mult_test,
+    "softmax": softmax_test,
+    "summation": summation_test
 }
 
 def run_tests(ctx: TestContext) -> None:
@@ -56,9 +95,15 @@ def run_tests(ctx: TestContext) -> None:
         print(f"Test {repr(k)} successful")
 
 def all_tests() -> None:
-    with MemoryManager.create(3000) as memory_manager:
-        fns_manager = TensorFunctionsManager(memory_manager)
-        ctx = TestContext(fns_manager = fns_manager)
+    root = Path(__file__).resolve().parent.parent / "test/outputs"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    
+    with MemoryManager.create(3000, data_type=DataType.complex64) as memory_manager, \
+        MemoryManager.create(3000, data_type=DataType.float32) as real_n_memory_manager:
+        
+        fns_manager = TensorFunctionsManager(memory_manager, real_n_memory_manager)
+        ctx = TestContext(fns_manager = fns_manager, root = root)
         run_tests(ctx)
         
 __all__ = ["all_tests"]

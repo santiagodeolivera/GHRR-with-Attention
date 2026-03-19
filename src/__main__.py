@@ -1,7 +1,6 @@
 import torch
 
 from tests import all_tests
-from constants import element_type
 
 def main():
     if not torch.cuda.is_available():
