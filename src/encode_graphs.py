@@ -9,26 +9,23 @@ import hv_functions
 from hv_memory import get_complex_random_hvs
 from utils import ICheckpointContext, CheckpointContext, VoidCheckpointContext, get_range_tensor, commutative_cantor_pairing
 from device import default_device
-from mutag import get_mutag_dataset
+from tudataset import get_dataset_main, get_graph_dataset
 from constants import D, m
 from fs_organization import FsOrganizer
 import localTypes
 
-"""
 def get_position_encodings() -> torch.Tensor:
-	v1 = get_range_tensor(m)
-	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
-	v3 = torch.where((n == row) & (n == col), torch.tensor(1.0, dtype=localTypes.encodeCompType), torch.tensor(0.0, dtype=localTypes.encodeCompType))
-	position_encodings = v3[:, None, :, :].expand(m, D, m, m)
+	max_num_nodes = get_dataset_main().max_num_nodes
 	
-	return position_encodings
-"""
-
-def get_position_encodings() -> torch.Tensor:
 	v1 = get_range_tensor(m)
-	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
-	v3 = torch.where((n == row) & (n == col), torch.tensor(1.0, dtype=localTypes.encodeCompType), torch.tensor(0.0, dtype=localTypes.encodeCompType))
-	position_encodings = v3[:, None, :, :].expand(m, D, m, m)
+	v2 = get_range_tensor(max_num_nodes)
+	n, row, col = torch.meshgrid(v2, v1, v1, indexing="ij")
+	
+	const0 = torch.tensor(0.0, dtype=torch.float32, device=default_device)
+	const1 = torch.tensor(1.0, dtype=torch.float32, device=default_device)
+	
+	v3 = torch.where(row == col, torch.clamp(n * (m / max_num_nodes) - row, const0, const1), const0).type(localTypes.encodeCompType)
+	position_encodings = v3[:, None, :, :].expand(max_num_nodes, D, m, m)
 	
 	return position_encodings
 
@@ -74,7 +71,7 @@ def create_hv( \
 	key_encodings_2_fn(current_encodings)
 	edges2: torch.Tensor = torch.gather(current_encodings, 0, edge_indices2[..., None, None, None].expand(-1, D, m, m))
 	del current_encodings
-	torch.cuda.empty_cache()
+	# torch.cuda.empty_cache()
 	key_positions: torch.Tensor = torch.gather(position_encodings, 0, edge_indices2[..., None, None, None].expand(-1, D, m, m))
 	
 	key_hv = hv_functions.key_from_encoded(edges1, edges2, key_positions)
@@ -83,7 +80,7 @@ def create_hv( \
 	del edges1
 	del edges2
 	del key_positions
-	torch.cuda.empty_cache()
+	# torch.cuda.empty_cache()
 	ctx1.print(f"Graph {g_id} - Finish calculating key")
 	
 	ctx1.print(f"Graph {g_id} - Start calculating result")
@@ -128,17 +125,23 @@ def create_and_save_hv( \
 	ctx2.print(f"Graph {g_id} - Finish")
 
 def action_create_hv(g_id: int, root: FsOrganizer) -> None:
-	query_encodings_fn = lambda out: get_complex_random_hvs(D, m, root.query_encodings, m, device=default_device, out=out)
-	key_encodings_1_fn = lambda out: get_complex_random_hvs(D, m, root.key_encodings_1, m, device=default_device, out=out)
-	key_encodings_2_fn = lambda out: get_complex_random_hvs(D, m, root.key_encodings_2, m, device=default_device, out=out)
-	value_encodings_fn = lambda out: get_complex_random_hvs(D, m, root.value_encodings, m, device=default_device, out=out)
+	max_num_nodes = get_dataset_main().max_num_nodes
+    
+	query_encodings_fn = lambda out: get_complex_random_hvs(D, m, root.query_encodings, \
+	    max_num_nodes, device=default_device, out=out)
+	key_encodings_1_fn = lambda out: get_complex_random_hvs(D, m, root.key_encodings_1, \
+	    max_num_nodes, device=default_device, out=out)
+	key_encodings_2_fn = lambda out: get_complex_random_hvs(D, m, root.key_encodings_2, \
+	    max_num_nodes, device=default_device, out=out)
+	value_encodings_fn = lambda out: get_complex_random_hvs(D, m, root.value_encodings, \
+	    max_num_nodes, device=default_device, out=out)
 	
 	ctx1 = VoidCheckpointContext()
 	ctx2 = VoidCheckpointContext()
 	
 	position_encodings = get_position_encodings()
 	
-	graphs = get_mutag_dataset(root.tudataset)
+	graphs = get_graph_dataset(root.tudataset)
 	graph = next(itertools.islice(graphs, g_id, None))
 
 	create_and_save_hv( \

@@ -1,6 +1,7 @@
 from typing import TypeGuard
 from pathlib import Path
 import json
+from dataclasses import dataclass
 
 from torch_geometric.data import Data
 from torch_geometric.datasets import TUDataset
@@ -10,11 +11,9 @@ import networkx as nx
 
 """
 Assumptions:
-	The MUTAG dataset has 188 graphs.
 	The graphs are always presented in the same order.
 	The graphs' nodes have IDs.
 	The nodes' IDs are consecutive and start from 0.
-	There's a maximum of 28 nodes in a graph.
 """
 
 def graph_is_directed(G: nx.Graph | nx.DiGraph) -> TypeGuard[nx.DiGraph]:
@@ -38,7 +37,7 @@ dataset_main_info: DatasetInfo | None = None
 
 dataset_info_list: tuple[DatasetInfo, ...] = (
     DatasetInfo("MUTAG", 188, 28),
-    DatasetInfo("PTC_FM", 349, 63)
+    DatasetInfo("PTC_FM", 349, 64)
 )
 
 def set_dataset_main(name: str):

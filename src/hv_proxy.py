@@ -5,7 +5,7 @@ import torch
 
 from device import default_device
 from fs_organization import FsOrganizer
-from mutag import get_ids_to_labels_mapping
+from tudataset import get_ids_to_labels_mapping
 from constants import D, m
 
 def f1(id: int, ids_to_labels: tuple[int, ...], root: FsOrganizer) -> "HVProxy":

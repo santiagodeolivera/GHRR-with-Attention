@@ -19,6 +19,7 @@ def get_split_ids_by_label(root: FsOrganizer) -> dict[int, list[HVProxy]]:
     
     return res
 
+# Compare similarities of HVs in random samples of different classes
 def func(root: FsOrganizer) -> None:
     root.config.result_file = "hv_comparison.json"
     

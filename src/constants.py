@@ -1,7 +1,5 @@
-from tudataset import get_dataset_main
-
-D = 8000
-m = get_dataset_main().max_num_nodes
+D = 10000
+m = 20
 
 F2_SAMPLE_SIZE = 20
 

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from utils import approximation as get_approximation
 import shutil
+from tudataset import get_dataset_main
 
 def get_parameter(name: str) -> str:
     result = os.environ.get(name, None)
@@ -24,7 +25,7 @@ def execute_graphhd(root: FsOrganizer) -> None:
     for instance_id in range(10):
         root.config.dist_file = f"instances/{instance_id}/dist_file.json"
         graphhd_root = Path(get_parameter("GRAPH_HD_ROOT"))
-        subprocess.run(["python", "main.py", f"--distr_file={root.train_and_test_sets_distribution}"], cwd=graphhd_root)
+        subprocess.run(["python", "main.py", f"--distr_file={root.train_and_test_sets_distribution}", f"--dataset={get_dataset_main().name}"], cwd=graphhd_root)
         
         root.config.result_file = f"instances/{instance_id}/result_file.json"
         with open(root.result_file, "r") as ghrr_result_file:
@@ -91,7 +92,7 @@ def find_closeness_approximation(root: FsOrganizer) -> None:
     with open(root.root / "comparisons_approximation.json", "w") as file:
         json.dump(approximation, file)
         
-
+# Compare with GraphHD
 def get_action(action_id: int) -> Callable[[FsOrganizer], None]:
     if action_id < 0:
         raise ValueError("Out of bounds")

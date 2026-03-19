@@ -122,9 +122,9 @@ def query_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tens
 # returns: (x-1)D batch of HVs
 # Warning: Modifies the input tensors
 def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor) -> torch.Tensor:
-    v1 = mult_batched(encodings2, positions2, out=encodings1, batch_size=256)
+    v1 = mult_batched(encodings2, positions2, out=encodings2, batch_size=256)
     v2 = v1.adjoint()
-    v3 = mult(v2, encodings1)
+    v3 = mult_batched(v2, encodings1, out=encodings1, batch_size=256)
     v4 = add_grouped(v3, dim=-4)
     v5 = normalize(v4)
     return v5

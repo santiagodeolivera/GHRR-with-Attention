@@ -10,7 +10,7 @@ import json
 
 from device import default_device
 from encode_graphs import action_create_hv
-from mutag import define_ids_to_labels_mapping
+from tudataset import define_ids_to_labels_mapping
 from fs_organization import FsOrganizer
 from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int
 from hv_proxy import iter_from_fs as proxies_from_fs, iter_to_batch as proxies_to_batch
