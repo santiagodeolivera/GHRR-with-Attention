@@ -37,7 +37,8 @@ dataset_main_info: DatasetInfo | None = None
 
 dataset_info_list: tuple[DatasetInfo, ...] = (
     DatasetInfo("MUTAG", 188, 28),
-    DatasetInfo("PTC_FM", 349, 64)
+    DatasetInfo("PTC_FM", 349, 64),
+    DatasetInfo("ENZYMES", 600, 126)
 )
 
 def set_dataset_main(name: str):
