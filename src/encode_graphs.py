@@ -14,6 +14,16 @@ from constants import D, m
 from fs_organization import FsOrganizer
 import localTypes
 
+"""
+def get_position_encodings() -> torch.Tensor:
+	v1 = get_range_tensor(m)
+	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")
+	v3 = torch.where((n == row) & (n == col), torch.tensor(1.0, dtype=localTypes.encodeCompType), torch.tensor(0.0, dtype=localTypes.encodeCompType))
+	position_encodings = v3[:, None, :, :].expand(m, D, m, m)
+	
+	return position_encodings
+"""
+
 def get_position_encodings() -> torch.Tensor:
 	v1 = get_range_tensor(m)
 	n, row, col = torch.meshgrid(v1, v1, v1, indexing="ij")

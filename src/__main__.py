@@ -1,3 +1,5 @@
+import prev_setup
+
 import os
 import torch
 from pathlib import Path

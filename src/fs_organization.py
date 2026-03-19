@@ -29,7 +29,7 @@ class FsOrganizer:
 	
 	def __init__(self, root: Path, config: FsConfig | None = None):
 		self.__root = root
-		self.config = FsConfig.default() if config is None else None
+		self.config = FsConfig.default() if config is None else config
 	
 	def setup(self):
 		self.base_encodings.mkdir(parents=True, exist_ok=True)
