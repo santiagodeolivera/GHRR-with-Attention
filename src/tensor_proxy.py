@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 from typing import Any
+import shutil
 
 import torch
 
@@ -37,7 +38,10 @@ class TensorProxy:
             raise Exception(f"TensorProxy in {path} already exists")
         
         tensor_path = path_to_data(path)
+        tensor_path.parent.mkdir(parents=True, exist_ok=True)
+        
         json_path = path_to_json(path)
+        json_path.parent.mkdir(parents=True, exist_ok=True)
         
         length = get_size(shape)
         with open(tensor_path, "wb") as f:
@@ -103,8 +107,13 @@ class TensorProxy:
         return data_path.exists() and data_path.is_file() and json_path.exists() and json_path.is_file()
     
     @staticmethod
+    def remove(path: Path, *, ignore_errors: bool = True) -> None:
+        shutil.rmtree(path_to_data(path), ignore_errors=ignore_errors)
+        shutil.rmtree(path_to_json(path), ignore_errors=ignore_errors)
+    
+    @staticmethod
     def get_if_exists(path: Path) -> "TensorProxy | None":
-        if TensorProxy.exists(path):
+        if not TensorProxy.exists(path):
             return None
         
         return TensorProxy(path)

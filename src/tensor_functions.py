@@ -276,25 +276,46 @@ class TensorFunctionsManager:
         result = TensorProxy.empty(shape, out, self.__real_n_manager.data_type)
         t2 = result.tensor().view(-1, vector_length)
         
-        g1, g2, g_unit = self.__real_n_manager.alloc_tensors( \
-            (max_parallel_operations, *n) for n in ((vector_length,), (vector_length,), (1,)) \
-        )
+        if self.use_gpu:
+            g1, g2, g_unit = self.__real_n_manager.alloc_tensors( \
+                (max_parallel_operations, *n) for n in ((vector_length,), (vector_length,), (1,)) \
+            )
+            
+            start = 0
+            while start < num_vectors:
+                stop = min(num_vectors, start + max_parallel_operations)
+                g01 = g1[:stop - start]
+                g02 = g2[:stop - start]
+                g0unit = g_unit[:stop - start]
+                
+                g01[...] = t1[start:stop]
+                torch.amax(g01, dim=1, keepdim=True, out=g0unit)
+                torch.sub(g01, g0unit, out=g02)
+                torch.exp(g02, out=g02)
+                torch.sum(g02, dim=1, keepdim=True, out=g0unit)
+                torch.div(g02, g0unit, out=g02)
+                
+                t2[start:stop] = g02
+                start = stop
+        else:
+            t_unit = torch.empty(num_vectors, 1, dtype=self.__real_n_manager.data_type.value)
+            torch.amax(t1, dim=1, keepdim=True, out=t_unit)
+            torch.sub(t1, t_unit, out=t2)
+            torch.exp(t2, out=t2)
+            torch.sum(t2, dim=1, keepdim=True, out=t_unit)
+            torch.div(t2, t_unit, out=t2)
         
-        start = 0
-        while start < num_vectors:
-            stop = min(num_vectors, start + max_parallel_operations)
-            g01 = g1[:stop - start]
-            g02 = g2[:stop - start]
-            g0unit = g_unit[:stop - start]
-            
-            g01[...] = t1[start:stop]
-            torch.amax(g01, dim=1, keepdim=True, out=g0unit)
-            torch.sub(g01, g0unit, out=g02)
-            torch.exp(g02, out=g02)
-            torch.sum(g02, dim=1, keepdim=True, out=g0unit)
-            torch.div(g02, g0unit, out=g02)
-            
-            t2[start:stop] = g02
-            start = stop
-    
         return result
+    
+    def swap_dims(self, v1: TensorProxy, i1: int, i2: int, out: Path) -> TensorProxy:
+        shape = list(v1.shape)
+        shape[i1], shape[i2] = shape[i2], shape[i1]
+        
+        t1 = v1.tensor()
+        result = TensorProxy.empty(shape, out, self.__real_n_manager.data_type)
+        t2 = result.tensor()
+        
+        t2[...] = t1.swapdims(i1, i2)
+        
+        return result
+

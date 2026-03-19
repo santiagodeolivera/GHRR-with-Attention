@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterable
 from dataclasses import dataclass
 import shutil
 
@@ -8,6 +8,7 @@ import torch
 from memory import MemoryManager
 from tensor_functions import TensorFunctionsManager
 from constants import DataType
+from operation_manager import OperationManager
 
 @dataclass
 class TestContext:
@@ -81,11 +82,37 @@ def summation_test(ctx: TestContext) -> None:
     if not torch.allclose(t3, result3):
         raise Exception()
 
+def operation_manager_test(ctx: TestContext) -> None:
+    fns = ctx.fns_manager
+    root = ctx.root
+    
+    op_manager = OperationManager(root / "op_manager", fns)
+    
+    templates: Iterable[tuple[tuple[int, ...], str, DataType]] = (
+        ((10, 10, 10), "1", DataType.complex64),
+        ((10, 5, 2, 4), "2", DataType.float32)
+    )
+    for shape, name, dtype in templates:
+        op_manager.add_randn(shape, name, dtype)
+    
+    op_manager.execute_all()
+    
+    for shape, name, dtype in templates:
+        proxy = op_manager.get_tensor(name)
+        tensor = proxy.tensor()
+        
+        if tensor.shape != shape:
+            raise Exception()
+        
+        if tensor.dtype != dtype.value:
+            raise Exception()
+
 tests: dict[str, Callable[[TestContext], None]] = {
     "addition": addition_test,
     "matrix_mult": matrix_mult_test,
     "softmax": softmax_test,
-    "summation": summation_test
+    "summation": summation_test,
+    "operation_manager": operation_manager_test
 }
 
 def run_tests(ctx: TestContext) -> None:
