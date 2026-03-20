@@ -12,6 +12,8 @@ echo "Root directory: $ROOT_DIR"
 echo "Memory history directory: $MEM_HISTORY_DIR"
 echo "Train-test datasets proportion: $PROPORTION"
 echo "Path to GraphHD program: $GRAPH_HD_ROOT"
+echo "Dimensions: $DIMENSIONS"
+echo "Matrix size: $MATRIX_SIZE"
 echo ""
 
 if [[ "$PROGRAM_ID" == "" ]]; then
