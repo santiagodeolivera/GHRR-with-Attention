@@ -308,8 +308,9 @@ class TensorFunctionsManager:
         return result
     
     def swap_dims(self, v1: TensorProxy, i1: int, i2: int, out: Path) -> TensorProxy:
-        shape = list(v1.shape)
-        shape[i1], shape[i2] = shape[i2], shape[i1]
+        shape0 = list(v1.shape)
+        shape0[i1], shape0[i2] = shape0[i2], shape0[i1]
+        shape = tuple(shape0)
         
         t1 = v1.tensor()
         result = TensorProxy.empty(shape, out, self.__real_n_manager.data_type)

@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 from dataclasses import dataclass
 import shutil
+import json
 
 import torch
 
@@ -86,14 +87,18 @@ def operation_manager_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    op_manager = OperationManager(root / "op_manager", fns)
+    op_root = root / "op_manager"
+    op_manager = OperationManager(op_root, fns)
     
     templates: Iterable[tuple[tuple[int, ...], str, DataType]] = (
         ((10, 10, 10), "1", DataType.complex64),
         ((10, 5, 2, 4), "2", DataType.float32)
     )
-    for shape, name, dtype in templates:
-        op_manager.add_randn(shape, name, dtype)
+    with open(root / "op_manager/operations.csv", "a") as file:
+        for shape, name, dtype in templates:
+            line = f"{name} ; randn ; {json.dumps(shape)} ; {dtype.name}"
+            file.write(line)
+            file.write("\n")
     
     op_manager.execute_all()
     
