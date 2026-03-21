@@ -23,7 +23,7 @@ class OperationManagerRecord:
     
     # Operations storage
     @property
-    def __operations_path(self) -> Path:
+    def operations_path(self) -> Path:
         return self.__root / "operations.csv"
     
     # Progress storage
@@ -34,8 +34,8 @@ class OperationManagerRecord:
     def setup(self) -> None:
         self.__tensors_path.mkdir(parents=True, exist_ok=True)
         
-        if not self.__operations_path.exists():
-            with open(self.__operations_path, "w") as file:
+        if not self.operations_path.exists():
+            with open(self.operations_path, "w") as file:
                 file.write(tutorial_text)
         
         if not self.__progress_path.exists():
@@ -57,7 +57,7 @@ class OperationManagerRecord:
     
     @cached_property
     def operations(self) -> tuple[Operation, ...]:
-        return operations_from_csv_file(self.__operations_path)
+        return operations_from_csv_file(self.operations_path)
     
     def get_tensor_path(self, key: str) -> Path:
         return self.__tensors_path / key

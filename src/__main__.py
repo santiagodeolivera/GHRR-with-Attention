@@ -1,4 +1,5 @@
-import argparse
+from parse_args import args
+
 from typing import Callable, Literal
 from pathlib import Path
 
@@ -7,28 +8,19 @@ import torch
 from programs.tests import all_tests
 from programs.create_record import func as create_record
 
-def new_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="GHRR with attention",
-    )
-    
-    parser.add_argument("-p", "--program", required=True)
-    parser.add_argument("-r", "--root-path")
-    
-    return parser
-
-type Program = tuple[Literal[False], Callable[[], None]] | tuple[Literal[True], Callable[[Path], None]]
+type Program = Callable[[Path], None]
 
 programs: dict[str, Program] = {
-    "test": (False, all_tests),
-    "create": (True, create_record)
+    "1": create_record
 }
 
 def main():
     if not torch.cuda.is_available():
         raise Exception("CUDA is not available")
     
-    args = new_parser().parse_args()
+    if args == "test":
+        all_tests()
+        return
     
     program_id = args.program
     program_data = programs.get(program_id, None)
@@ -37,8 +29,6 @@ def main():
     
     if program_data[0]:
         root_path_str = args.root_path
-        if root_path_str is None:
-            raise Exception(f"Root path required")
         
         root_path = Path(root_path_str)
         program_data[1](root_path)

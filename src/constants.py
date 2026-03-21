@@ -1,3 +1,5 @@
+from parse_args import args
+
 from builtins import slice
 from typing import Any
 
@@ -31,4 +33,7 @@ DataType.float32 = DataType("float32", torch.float32, 4, False)
 _data_types: set[DataType] = { DataType.complex64, DataType.float32 }
 
 type SliceInfo = tuple[slice[int, int, int], ...]
+
+D = int(args.dims)
+m = int(args.matrix_size)
 

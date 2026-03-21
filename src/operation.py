@@ -83,10 +83,15 @@ def operation_builders() -> dict[str, Callable[[str, Sequence[str]], Operation]]
 
     def swap_dims(out: str, inputs: Sequence[str]) -> Operation:
         n1 = inputs[0]
-        i1 = str_to_int(inputs[1])
-        i2 = str_to_int(inputs[2])
+        i1, i2 = tuple(str_to_int(v) for v in inputs[1:3])
         return Operation(out, (n1,), lambda v1, out, fns: fns.swap_dims(v1, i1, i2, out))
-    tutorial_text_lines.append("<id_result> ; swapdims ; <id_input_1> ; <dim1> ; <dim2>")
+    tutorial_text_lines.append("<id_result> ; swapdims ; <id_input> ; <dim1> ; <dim2>")
+    
+    def slice_range(out: str, inputs: Sequence[str]) -> Operation:
+        n1 = inputs[0]
+        dim, min_v, max_v = tuple(str_to_int(v) for v in inputs[1:4])
+        return Operation(out, (n1,), lambda v1, out, fns: fns.slice_range(v1, dim, min_v, max_v, out))
+    tutorial_text_lines.append("<id_result> ; slicerange ; <id_input> ; <dim> ; <min> ; <max>")
     
     return {
         "randn": randn,
@@ -97,7 +102,8 @@ def operation_builders() -> dict[str, Callable[[str, Sequence[str]], Operation]]
         "adjoint": adjoint,
         "real": real,
         "softmax": softmax,
-        "swapdims": swap_dims
+        "swapdims": swap_dims,
+        "slicerange": slice_range
     }
 
 tutorial_text = "".join(f"# ; {s}\n" for s in tutorial_text_lines)

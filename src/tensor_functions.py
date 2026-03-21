@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Callable, Any
+from builtins import slice
 
 import torch
 
@@ -313,10 +314,26 @@ class TensorFunctionsManager:
         shape = tuple(shape0)
         
         t1 = v1.tensor()
-        result = TensorProxy.empty(shape, out, self.__real_n_manager.data_type)
+        result = TensorProxy.empty(shape, out, v1.data_type)
         t2 = result.tensor()
         
         t2[...] = t1.swapdims(i1, i2)
         
         return result
-
+    
+    def slice_range(self, v1: TensorProxy, dim: int, min_v: int, max_v: int, out: Path) -> TensorProxy:
+        if max_v <= min_v:
+            raise Exception()
+        
+        shape0 = list(v1.shape)
+        shape0[dim] = max_v - min_v
+        shape = tuple(shape0)
+        
+        t1 = v1.tensor()
+        result = TensorProxy.empty(shape, out, v1.data_type)
+        t2 = result.tensor()
+        
+        t2[...] = t1[*(slice(None) for _ in range(dim)), min_v:max_v, ...]
+        
+        return result
+    
