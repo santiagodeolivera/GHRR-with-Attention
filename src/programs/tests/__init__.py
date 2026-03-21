@@ -127,7 +127,7 @@ def run_tests(ctx: TestContext) -> None:
         print(f"Test {repr(k)} successful")
 
 def all_tests() -> None:
-    root = Path(__file__).resolve().parent.parent / "test/outputs"
+    root = Path(__file__).resolve().parent.parent.parent.parent / "test/outputs"
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
     

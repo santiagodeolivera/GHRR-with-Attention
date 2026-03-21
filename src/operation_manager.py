@@ -76,7 +76,6 @@ class OperationManager:
     def __init__(self, root: Path, fns: TensorFunctionsManager) -> None:
         self.__fns = fns
         self.__record = OperationManagerRecord(root)
-        self.__record.setup()
     
     def __execute(self, op: Operation) -> None:
         output_path = self.__record.get_tensor_path(op.output_name)
@@ -87,8 +86,13 @@ class OperationManager:
         result = (op.fn)(*inputs, output_path, self.__fns) # Automatically stores the tensor in the correct file
     
     def execute_all(self) -> None:
-        for op in self.__record.operations:
-            self.__execute(op)
+        operations = self.__record.operations
+        
+        progress = self.__record.progress
+        while progress < len(operations):
+            self.__execute(operations[progress])
+            progress += 1
+            self.__record.progress = progress
     
     def get_tensor(self, name: str) -> TensorProxy:
         return self.__record.get_tensor(name)
