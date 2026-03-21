@@ -1,0 +1,12 @@
+# ; <id_result> ; randn ; <json_shape> ; <dtype_name>
+# ; <id_result> ; add ; <id_input_1> ; <id_input_1>
+# ; <id_result> ; sum ; <id_input> ; <unit_dims>
+# ; <id_result> ; matmul ; <id_input_1> ; <id_input_2>
+# ; <id_result> ; normalize ; <id_input>
+# ; <id_result> ; adjoint ; <id_input>
+# ; <id_result> ; real ; <id_input>
+# ; <id_result> ; softmax ; <id_input>
+# ; <id_result> ; swapdims ; <id_input_1> ; <dim1> ; <dim2>
+1 ; randn ; [10, 10, 10] ; complex64
+2 ; randn ; [10, 5, 2, 4] ; float32
+

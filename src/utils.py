@@ -208,3 +208,6 @@ def approximation(numbers: Sequence[float]) -> str:
     std = sqrt(sum((x - avg)**2 for x in numbers) / n)
     return f"{avg*100:.02f}% \u00B1 {std*100:.02f}%"
 
+def get_size(shape: tuple[int, ...]) -> int:
+    return reduce(lambda a, b: a * b, shape, 1)
+
