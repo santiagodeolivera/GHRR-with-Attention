@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Sequence
 import json
+import torch
 
 from hv_proxy import HVProxy, iter_from_fs as proxies_from_fs
 from fs_organization import FsOrganizer
@@ -23,14 +24,13 @@ def get_split_ids_by_label(root: FsOrganizer) -> dict[int, list[HVProxy]]:
 def func(root: FsOrganizer) -> None:
     root.config.result_file = "hv_comparison.json"
     
-    samples: dict[int, list[HVProxy]] = get_split_ids_by_label(root)
-    for label in samples.keys():
-        samples[label] = take_random_from_list(samples[label], F2_SAMPLE_SIZE)
+    samples0: dict[int, list[HVProxy]] = get_split_ids_by_label(root)
+    samples: dict[int, tuple[HVProxy, ...]] = {k: take_random_from_list(v, F2_SAMPLE_SIZE) for k, v in samples0.items()}
     
     hv1: torch.Tensor | None = None
     hv2: torch.Tensor | None = None
     raw_data: dict[str, dict[str, float]] = dict()
-    approximations: dict[str, float] = dict()
+    approximations: dict[str, str] = dict()
     for label1 in samples.keys():
         for label2 in samples.keys():
             if label1 > label2: continue

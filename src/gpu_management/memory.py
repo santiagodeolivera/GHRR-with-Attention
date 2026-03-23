@@ -5,7 +5,7 @@ from typing import Iterable, Sequence, Any
 
 import torch
 
-from constants import SliceInfo, DataType
+from .constants import DataType
 from utils import get_size
 
 class MemoryManager:

@@ -168,7 +168,7 @@ def action_create_all_hvs(g_id: int, root: FsOrganizer) -> None:
 	
 	position_encodings = get_position_encodings()
 	
-	graphs = get_mutag_dataset(root.tudataset)
+	graphs = get_graph_dataset(root.tudataset)
 	
 	for g_id, graph in enumerate(graphs):
 		create_and_save_hv( \

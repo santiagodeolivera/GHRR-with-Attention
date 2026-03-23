@@ -48,7 +48,7 @@ def check_result_data(v: Any) -> tuple[list[int], list[int], list[int]]:
 			v1 = json.dumps(key)
 			raise Exception(f"Error while handling key {v1}") from e
 	
-	return tuple(f2(key) for key in ("ids", "expected", "result"))
+	return (f2("ids"), f2("expected"), f2("result"))
 
 def f1(root: FsOrganizer, instance_dir: str) -> ConfusionMatrix:
 	root.config.result_file = instance_dir

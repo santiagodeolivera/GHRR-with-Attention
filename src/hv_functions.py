@@ -2,204 +2,147 @@ import torch
 import torch.nn.functional as F
 from typing import Callable, Any
 from functools import reduce
+from pathlib import Path
 
 from utils import value_or, not_none, print_tensor_struct
 import localTypes
-from device import default_device
+from gpu_management import TensorFunctionsManager
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
-def torch_fromfunction( \
-    fn: Callable[..., torch.Tensor], \
-    shape: tuple[int, ...], \
-    *, \
-    device: torch.device \
-) -> Any:
-    tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
-    tensors2 = torch.meshgrid(*tensors1, indexing="ij")
+class TmpGenerator:
+    __counter: int
+    __function: Callable[[int], Path]
     
-    res = fn(*tensors2)
+    def __init__(self, function: Callable[[int], Path]):
+        self.__counter = 0
+        self.__function = function
     
-    return res
-
-# data: (x)D batch of HVs
-# returns: (x)D batch of HVs
-def normalize(data: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
-    data_size = reduce(lambda a, b: a * b, data.shape[-3:])
-    view = data.view(-1, data_size)
-    
-    real_out: torch.Tensor
-    if not_none(out):
-        real_out = out
-    else:
-        real_out = torch.empty_like(data)
-    real_out_view = real_out.view(-1, data_size)
-    
-    F.normalize(view, p=2, dim=1, out=real_out_view)
-    return real_out
-
-# data: (x)D batch of HVs
-# dims: Dimensions to sum
-# returns: (x-dims.len)D batch of HVs
-def add_grouped( \
-    data: torch.Tensor, \
-    *, \
-    dim: tuple[int, ...] | int | None = None, \
-    out: torch.Tensor | None = None \
-) -> torch.Tensor:
-    if dim is None: dim = tuple(range(len(data.shape) - 3))
-    if type(dim) == int: dim = (dim,)
-
-    for n in range(1, 4):
-        dim_id = len(data.shape) - n
-        if dim_id in dim or -n in dim:
-            raise ValueError(F"Dimension {dim_id} (-{n}) is internal to the structure of HVs")
-    
-    return torch.sum(data, dim=dim, out=out)
-
-# a: (x)D batch of HVs
-# b: (x)D batch of HVs
-# returns: (x)D batch of HVs
-def mult(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
-    try:
-        return torch.matmul(a, b, out=out)
-    except Exception as e:
-        v1 = print_tensor_struct(out) if out is not None else None
-        raise Exception(f"Exception occurred ({print_tensor_struct(a)} * {print_tensor_struct(b)}, out={v1})") from e
-
-# a: (x)D batch of HVs
-# b: (x)D batch of HVs
-# returns: (x)D batch of HVs
-# More memory-efficient than mult, when out is one of the two operands
-def mult_batched(a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor, batch_size: int) -> torch.Tensor:
-    try:
-        if a.shape[-2] != b.shape[-1]:
-            raise Exception()
+    def new_names(self, n: int) -> tuple[Path, ...]:
+        start = self.__counter
+        stop = start + n
         
-        rows = b.shape[-2]
-        n = a.shape[-2]
-        cols = a.shape[-1]
+        result = tuple((self.__function)(x) for x in range(start, stop))
         
-        a_view = a.view(-1, n, cols)
-        b_view = b.view(-1, rows, n)
-        out_view = out.view(-1, rows, cols)
-        
-        num_matrices = a_view.shape[0]
-        if b_view.shape[0] != num_matrices:
-            raise Exception()
-        if out_view.shape[0] != num_matrices:
-            raise Exception()
-        
-        tmp: torch.Tensor | None = None
-        for i in range(0, num_matrices, batch_size):
-            range_min = i
-            range_max = min(i + batch_size, num_matrices)
-            range_len = range_max - range_min
-            tmp = torch.matmul( \
-                a_view[range_min:range_max, ...], \
-                b_view[range_min:range_max, ...], \
-                out=tmp[:range_len, ...] if tmp is not None else None \
-            )
-            out_view[range_min:range_max, ...] = tmp[:range_len, ...]
-        
-        return out
-    except Exception as e:
-        v1 = print_tensor_struct(out) if out is not None else None
-        raise Exception(f"Exception occurred ({print_tensor_struct(a)} * {print_tensor_struct(b)}, out={v1})") from e
+        self.__counter = stop
+        return result
 
-# positional_encodings: (x)D batch of HVs
-# encodings: (x)D batch of HVs
-# returns: (x-1)D batch of HVs
-def query_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
-    v1 = mult(positional_encodings, encodings)
-    v2 = add_grouped(v1, dim=-4)
-    v3 = normalize(v2)
-    return v3
-
-# encodings1: (x)D batch of HVs
-# encodings2: (x)D batch of HVs
-# positions2: (x)D batch of HVs
-# returns: (x-1)D batch of HVs
-# Warning: Modifies the input tensors
-def key_from_encoded(encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor) -> torch.Tensor:
-    v1 = mult_batched(encodings2, positions2, out=encodings2, batch_size=256)
-    v2 = v1.adjoint()
-    v3 = mult_batched(v2, encodings1, out=encodings1, batch_size=256)
-    v4 = add_grouped(v3, dim=-4)
-    v5 = normalize(v4)
-    return v5
-
-# positional_encodings: (x)D batch of HVs
-# encodings: (x)D batch of HVs
-# returns: (x-1)D batch of HVs
-def value_from_encoded(positional_encodings: torch.Tensor, encodings: torch.Tensor) -> torch.Tensor:
-    v1 = mult(positional_encodings, encodings)
-    v2 = add_grouped(v1, dim=-4)
-    v3 = normalize(v2)
-    return v3
-
-# query_hv: HV
-# key_hv: HV
-# value_hv: HV
-# returns: HV
-def attention_function(query_hv: torch.Tensor, key_hv: torch.Tensor, value_hv: torch.Tensor) -> torch.Tensor:
-    v1: torch.Tensor = torch.adjoint(key_hv)
-    v2: torch.Tensor = mult(query_hv, v1)
-    v3: torch.Tensor = v2.real
-    v4: torch.Tensor = torch.nn.functional.softmax(v3, dim=-3).type(torch.complex64)
-    v5: torch.Tensor = mult(v4, value_hv)
-    v6: torch.Tensor = normalize(v5)
-    return v6
-
-# a: (x)D batch of HVs
-# b: (x)D batch of HVs
-# returns: (x)D batch of floating-point numbers from 0 to 1
-def unnormalized_similarity(a: torch.Tensor, b: torch.Tensor, *, batch_size: int | None = None) -> torch.Tensor:
-    if a.shape != b.shape:
-        raise ValueError(f"Cannot calculate similarity on tensors of shape {a.shape} and {b.shape}")
+class UpperTensorFunctionsManager:
+    lower: TensorFunctionsManager
+    __tmp_gen: TmpGenerator
     
-    shape = a.shape
-    if shape[-1] != shape[-2]:
-        raise ValueError("Last two dimensions must be identical for both operands")
+    def __init__(self, lower: TensorFunctionsManager, function: Callable[[int], Path]):
+        self.lower = lower
+        self.__tmp_gen = TmpGenerator(function)
     
-    D = a.shape[-3]
-    m = a.shape[-2]
+    # positional_encodings: (x)D batch of HVs
+    # encodings: (x)D batch of HVs
+    # returns: (x-1)D batch of HVs
+    def query_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor, out: Path) -> TensorProxy:
+        v1 = mult(positional_encodings, encodings)
+        v2 = add_grouped(v1, dim=-4)
+        v3 = normalize(v2)
+        return v3
 
-    if batch_size is None:
-        v1 = torch.adjoint(b)
-        v2 = mult(a, v1)
-        v3 = torch.sum(v2, dim=-3)
-        v4 = torch.diagonal(v3, dim1=-2, dim2=-1).sum(dim=-1)
-        v5 = torch.real(v4)
-        v6 = v5 / (m * D)
+    # encodings1: (x)D batch of HVs
+    # encodings2: (x)D batch of HVs
+    # positions2: (x)D batch of HVs
+    # returns: (x-1)D batch of HVs
+    # Warning: Modifies the input tensors
+    def key_from_encoded(self, encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor) -> TensorProxy:
+        v1 = mult_batched(encodings2, positions2, out=encodings2, batch_size=256)
+        v2 = v1.adjoint()
+        v3 = mult_batched(v2, encodings1, out=encodings1, batch_size=256)
+        v4 = add_grouped(v3, dim=-4)
+        v5 = normalize(v4)
+        return v5
+
+    # positional_encodings: (x)D batch of HVs
+    # encodings: (x)D batch of HVs
+    # returns: (x-1)D batch of HVs
+    def value_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor) -> TensorProxy:
+        v1 = mult(positional_encodings, encodings)
+        v2 = add_grouped(v1, dim=-4)
+        v3 = normalize(v2)
+        return v3
+
+    # query_hv: HV
+    # key_hv: HV
+    # value_hv: HV
+    # returns: HV
+    def attention_function(self, query_hv: torch.Tensor, key_hv: torch.Tensor, value_hv: torch.Tensor) -> TensorProxy:
+        v1 = torch.adjoint(key_hv)
+        v2 = mult(query_hv, v1)
+        v3 = v2.real
+        v4 = torch.nn.functional.softmax(v3, dim=-3).type(torch.complex64)
+        v5 = mult(v4, value_hv)
+        v6 = normalize(v5)
         return v6
-    else:
-        res_shape = shape[:-3]
-        a_view = a.view(-1, D, m, m)
-        b_view = b.view(-1, D, m, m)
-        num_hvs = a_view.shape[0]
+
+    # a: (x)D batch of HVs
+    # b: (x)D batch of HVs
+    # returns: (x)D batch of floating-point numbers from 0 to 1
+    def unnormalized_similarity(self, a: torch.Tensor, b: torch.Tensor, *, batch_size: int | None = None) -> TensorProxy:
+        if a.shape != b.shape:
+            raise ValueError(f"Cannot calculate similarity on tensors of shape {a.shape} and {b.shape}")
         
-        res: torch.Tensor = torch.zeros(size=res_shape, device=default_device, dtype=localTypes.hvRealType)
-        res_view = res.view(-1)
+        shape = a.shape
+        if shape[-1] != shape[-2]:
+            raise ValueError("Last two dimensions must be identical for both operands")
         
-        for i in range(0, num_hvs, batch_size):
-            range_min = i
-            range_max = min(i + batch_size, num_hvs)
+        D = a.shape[-3]
+        m = a.shape[-2]
+
+        if batch_size is None:
+            v1 = torch.adjoint(b)
+            v2 = mult(a, v1)
+            v3 = torch.sum(v2, dim=-3)
+            v4 = torch.diagonal(v3, dim1=-2, dim2=-1).sum(dim=-1)
+            v5 = torch.real(v4)
+            v6 = v5 / (m * D)
+            return v6
+        else:
+            res_shape = shape[:-3]
+            a_view = a.view(-1, D, m, m)
+            b_view = b.view(-1, D, m, m)
+            num_hvs = a_view.shape[0]
             
-            res_view[range_min:range_max] = unnormalized_similarity( \
-                a_view[range_min:range_max, ...], \
-                b_view[range_min:range_max, ...] \
-            )
+            res = torch.zeros(size=res_shape, device=default_device, dtype=localTypes.hvRealType)
+            res_view = res.view(-1)
+            
+            for i in range(0, num_hvs, batch_size):
+                range_min = i
+                range_max = min(i + batch_size, num_hvs)
+                
+                res_view[range_min:range_max] = unnormalized_similarity( \
+                    a_view[range_min:range_max, ...], \
+                    b_view[range_min:range_max, ...] \
+                )
+            
+            return res
+
+    # a: (x)D batch of HVs
+    # b: (x)D batch of HVs
+    # returns: (x)D batch of floating-point numbers from 0 to 1
+    def normalized_similarity(self, a: torch.Tensor, b: torch.Tensor, *, batch_size: int | None = None) -> TensorProxy:
+        mid = unnormalized_similarity(a, b, batch_size=batch_size)
+        v1 = unnormalized_similarity(a, a, batch_size=batch_size)
+        v2 = unnormalized_similarity(b, b, batch_size=batch_size)
+        
+        return mid / torch.sqrt(v1 * v2)
+    
+    """
+    def torch_fromfunction( \
+        fn: Callable[..., torch.Tensor], \
+        shape: tuple[int, ...], \
+        *, \
+        device: torch.device \
+    ) -> Any:
+        tensors1 = tuple(torch.tensor(range(n), dtype=torch.int32, device=device) for n in shape)
+        tensors2 = torch.meshgrid(*tensors1, indexing="ij")
+        
+        res = fn(*tensors2)
         
         return res
-
-# a: (x)D batch of HVs
-# b: (x)D batch of HVs
-# returns: (x)D batch of floating-point numbers from 0 to 1
-def normalized_similarity(a: torch.Tensor, b: torch.Tensor, *, batch_size: int | None = None) -> torch.Tensor:
-    mid = unnormalized_similarity(a, b, batch_size=batch_size)
-    v1 = unnormalized_similarity(a, a, batch_size=batch_size)
-    v2 = unnormalized_similarity(b, b, batch_size=batch_size)
+    """
     
-    return mid / torch.sqrt(v1 * v2)
-

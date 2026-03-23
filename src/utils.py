@@ -5,6 +5,7 @@ from random import shuffle as random_shuffle
 from typing import TypeVar, TypeGuard, Callable, Any, Protocol, Sequence
 from pathlib import Path
 from math import sqrt
+from functools import reduce
 
 import torch
 
@@ -66,7 +67,7 @@ def commutative_cantor_pairing(a: int, b: int) -> int:
     return cantor_pairing(a, b)
 
 def log(value: T, msg: str | None = None, show: bool | Callable[[T], Any] = False) -> T:
-    if is_bool(show):
+    if isinstance(show, bool):
         if show:
             print(f"{msg}: {value}" if msg is not None else value)
         else:
@@ -121,7 +122,7 @@ def print_tensor_struct(t: torch.Tensor) -> str:
 
 def find_unique_path(path_input: str | Path) -> Path:
     path: Path
-    if is_str(path_input):
+    if isinstance(path_input, str):
         path = Path(path_input)
     else:
         path = path_input
@@ -185,17 +186,17 @@ def get_train_and_test_datasets(path: Path) -> tuple[tuple[int, ...], tuple[int,
     
     if type(train_ids) != list:
         raise Exception()
-    if any(type(x) != int for x in train_ids):
+    if not all(isinstance(x, int) for x in train_ids):
         raise Exception()
 
     test_ids = raw_data["test"]
     
     if type(test_ids) != list:
         raise Exception()
-    if any(type(x) != int for x in test_ids):
+    if not all(isinstance(x, int) for x in test_ids):
         raise Exception()
     
-    return (train_ids, test_ids)
+    return (tuple(train_ids), tuple(test_ids))
 
 # Changes the input parameter
 def take_random_from_list(input: list[T], number: int) -> tuple[T, ...]:

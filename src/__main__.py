@@ -8,7 +8,6 @@ import pickle
 import re
 import json
 
-from device import default_device
 from encode_graphs import action_create_hv
 from tudataset import define_ids_to_labels_mapping
 from fs_organization import FsOrganizer
@@ -112,6 +111,8 @@ def get_action(program_id: int, action_id: int) -> Callable[[FsOrganizer], None]
             return get_f3_action(action_id - 221)
     else:
         raise ValueError("Unknown program id")
+    
+    return None
 
 def main() -> None:
     if default_device.type != "cuda":

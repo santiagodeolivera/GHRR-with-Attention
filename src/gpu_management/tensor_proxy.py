@@ -5,8 +5,8 @@ import shutil
 
 import torch
 
-from memory import MemoryManager
-from constants import SliceInfo, DataType
+from .memory import MemoryManager
+from .constants import SliceInfo, DataType
 from utils import get_size
 
 types_dict: set[tuple[str, Any]] = {
