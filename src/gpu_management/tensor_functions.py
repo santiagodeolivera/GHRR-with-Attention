@@ -16,7 +16,6 @@ class TensorFunctionsManager:
     def __init__(self, manager_mem: dict[str, int]):
         self.__managers = {k: MemoryManager.create(v, DataType.get_by_name(k)) for k, v in manager_mem.items()}
         self.use_gpu = True
-        self.__tmp_gen = TmpGenerator(0, function)
     
     def __enter__(self) -> "TensorFunctionsManager":
         return self
@@ -86,8 +85,8 @@ class TensorFunctionsManager:
         max_size = manager.max_mem // 3
         if max_size <= 0: raise Exception()
         
-        t1 = v1.tensor().view(-1)
-        t2 = v2.tensor().view(-1)
+        t1 = v1.view(-1)
+        t2 = v2.view(-1)
         result = TensorProxy.empty_override(v1.shape, out, data_type)
         t3 = result.tensor().view(-1)
         
@@ -113,10 +112,10 @@ class TensorFunctionsManager:
         
         return result
 
-    def addition(self, v1: torch.Tensor, v2: torch.Tensor, out: Path) -> TensorProxy:
+    def addition(self, v1: torch.Tensor, v2: torch.Tensor, *, out: Path) -> TensorProxy:
         return self.element_wise_binary_operation(v1, v2, lambda t1, t2, t3: torch.add(t1, t2, out=t3), out)
     
-    def summation(self, v1: torch.Tensor, unit_dims: int, out: Path) -> TensorProxy:
+    def summation(self, v1: torch.Tensor, unit_dims: int, *, out: Path) -> TensorProxy:
         data_type = DataType.get_by_dtype(v1.dtype)
         
         if unit_dims <= 0:
@@ -132,7 +131,7 @@ class TensorFunctionsManager:
         batch_size = get_size(batch_shape)
         unit_size = get_size(unit_shape)
         
-        t1 = v1.tensor().view(-1, unit_size)
+        t1 = v1.view(-1, unit_size)
         result = TensorProxy.empty_override(batch_shape, out, data_type)
         t2 = result.tensor().view(-1)
         
@@ -140,7 +139,13 @@ class TensorFunctionsManager:
         
         return result
     
-    def matrix_mult(self, v1: torch.Tensor, v2: torch.Tensor, out: Path) -> TensorProxy:
+    def elem_mult(self, v1: torch.Tensor, v2: torch.Tensor, *, out: Path) -> TensorProxy:
+        return self.element_wise_binary_operation(v1, v2, lambda t1, t2, t3: torch.mul(t1, t2, out=t3), out)
+    
+    def elem_div(self, v1: torch.Tensor, v2: torch.Tensor, *, out: Path) -> TensorProxy:
+        return self.element_wise_binary_operation(v1, v2, lambda t1, t2, t3: torch.div(t1, t2, out=t3), out)
+    
+    def matrix_mult(self, v1: torch.Tensor, v2: torch.Tensor, *, out: Path) -> TensorProxy:
         if v1.dtype != v2.dtype:
             raise Exception()
         
@@ -165,8 +170,8 @@ class TensorFunctionsManager:
         max_parallel_operations = manager.max_mem // mem_per_op
         if max_parallel_operations <= 0: raise Exception()
         
-        t1 = v1.tensor().view(-1, rows, n)
-        t2 = v2.tensor().view(-1, n, cols)
+        t1 = v1.view(-1, rows, n)
+        t2 = v2.view(-1, n, cols)
         result = TensorProxy.empty_override((*shape1[:-2], rows, cols), out, data_type)
         t3 = result.tensor().view(-1, rows, cols)
         
@@ -191,33 +196,35 @@ class TensorFunctionsManager:
     
         return result
     
-    def get_norm(self, v1: torch.Tensor) -> float:
-        return torch.linalg.vector_norm(v1.tensor())
+    def sqrt(self, v1: torch.Tensor, *, out: Path) -> TensorProxy:
+        return self.element_wise_unary_operation(v1, lambda t1, t2: torch.sqrt(t1, out=t2), out)
     
-    def divide_by_scalar(self, v1: torch.Tensor, divisor: float, out: Path) -> TensorProxy:
+    def get_norm(self, v1: torch.Tensor) -> float:
+        return torch.linalg.vector_norm(v1)
+    
+    def divide_by_scalar(self, v1: torch.Tensor, divisor: float, *, out: Path) -> TensorProxy:
         return self.element_wise_unary_operation(v1, lambda t1, t2: torch.div(t1, divisor, out=t2), out)
     
-    def normalize(self, v1: torch.Tensor, out: Path) -> TensorProxy:
+    def normalize(self, v1: torch.Tensor, *, out: Path) -> TensorProxy:
         norm = self.get_norm(v1)
         return self.divide_by_scalar(v1, norm, out=out)
     
-    def adjoint(self, v1: torch.Tensor, out: Path) -> TensorProxy:
-        shape = v1.shape
+    def adjoint(self, t1: torch.Tensor, *, out: Path) -> TensorProxy:
+        data_type = DataType.get_by_dtype(t1.dtype)
+        shape = t1.shape
         rows = shape[-2]
         cols = shape[-1]
         
-        t1 = v1.tensor()
         result = TensorProxy.empty_override((*shape[:-2], cols, rows), out, data_type)
         t2 = result.tensor()
         t2[...] = torch.adjoint(t1)
         
         return result
     
-    def real(self, v1: torch.Tensor, out: Path) -> TensorProxy:
-        data_type = DataType.get_by_dtype(v1.dtype)
+    def real(self, t1: torch.Tensor, *, out: Path) -> TensorProxy:
+        data_type = DataType.get_by_dtype(t1.dtype)
         result_type = data_type.to_real()
         
-        t1 = v1.tensor()
         result = TensorProxy.empty_override(v1.shape, out, result_type)
         t2 = result.tensor()
         
@@ -225,7 +232,7 @@ class TensorFunctionsManager:
         
         return result
     
-    def softmax(self, v1: torch.Tensor, out: Path) -> TensorProxy:
+    def softmax(self, v1: torch.Tensor, *, out: Path) -> TensorProxy:
         data_type = DataType.get_by_dtype(v1.dtype)
         
         if not data_type.is_real():
@@ -242,7 +249,7 @@ class TensorFunctionsManager:
         max_parallel_operations = manager.max_mem // mem_per_op
         if max_parallel_operations <= 0: raise Exception()
         
-        t1 = v1.tensor().view(-1, vector_length)
+        t1 = v1.view(-1, vector_length)
         result = TensorProxy.empty_override(shape, out, data_type)
         t2 = result.tensor().view(-1, vector_length)
         
@@ -274,6 +281,20 @@ class TensorFunctionsManager:
             torch.exp(t2, out=t2)
             torch.sum(t2, dim=1, keepdim=True, out=t_unit)
             torch.div(t2, t_unit, out=t2)
+        
+        return result
+    
+    def diagonal(self, t1: torch.Tensor, *, out: Path) -> TensorProxy:
+        data_type = DataType.get_by_dtype(t1.dtype)
+        shape = t1.shape
+        if shape[-2] != shape[-1]:
+            raise Exception()
+        matrix_len = shape[-1]
+        
+        result = TensorProxy.empty_override(shape[:-1], out, data_type)
+        t2 = result.tensor()
+        for i in range(matrix_len):
+            t2[..., i] = t1[..., i, i]
         
         return result
 

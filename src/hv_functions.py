@@ -18,7 +18,7 @@ class TmpGenerator:
         self.__counter = 0
         self.__function = function
     
-    def new_names(self, n: int) -> tuple[Path, ...]:
+    def new_paths(self, n: int) -> tuple[Path, ...]:
         start = self.__counter
         stop = start + n
         
@@ -35,13 +35,22 @@ class UpperTensorFunctionsManager:
         self.lower = lower
         self.__tmp_gen = TmpGenerator(function)
     
+    # hvs: (x)D batch of HVs
+    # returns: (x-1)D batch of HVs
+    def sum_hvs(self, hvs: torch.Tensor, *, out: Path) -> TensorProxy:
+        tensor = hvs.transpose(-4, -3).transpose(-3, -2).transpose(-2, -1)
+        result = self.lower.summation(tensor, 1, out=out)
+        return result
+    
     # positional_encodings: (x)D batch of HVs
     # encodings: (x)D batch of HVs
     # returns: (x-1)D batch of HVs
-    def query_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor, out: Path) -> TensorProxy:
-        v1 = mult(positional_encodings, encodings)
-        v2 = add_grouped(v1, dim=-4)
-        v3 = normalize(v2)
+    def query_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor, *, out: Path) -> TensorProxy:
+        tmp = self.__tmp_gen.new_paths(2)
+        
+        v1 = self.lower.matrix_mult(positional_encodings, encodings, out=tmp[0])
+        v2 = self.sum_hvs(v1.tensor(), out=tmp[1])
+        v3 = self.lower.normalize(v2.tensor(), out=out)
         return v3
 
     # encodings1: (x)D batch of HVs
@@ -49,40 +58,51 @@ class UpperTensorFunctionsManager:
     # positions2: (x)D batch of HVs
     # returns: (x-1)D batch of HVs
     # Warning: Modifies the input tensors
-    def key_from_encoded(self, encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor) -> TensorProxy:
-        v1 = mult_batched(encodings2, positions2, out=encodings2, batch_size=256)
-        v2 = v1.adjoint()
-        v3 = mult_batched(v2, encodings1, out=encodings1, batch_size=256)
-        v4 = add_grouped(v3, dim=-4)
-        v5 = normalize(v4)
+    def key_from_encoded(self, encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor, *, out: Path) -> TensorProxy:
+        tmp = self.__tmp_gen.new_paths(4)
+        
+        v1 = self.lower.matrix_mult(encodings2, positions2, out=tmp[0])
+        v2 = self.lower.adjoint(v1.tensor(), out=tmp[1])
+        v3 = self.lower.matrix_mult(v2.tensor(), encodings1, out=tmp[2])
+        v4 = self.sum_hvs(v3.tensor(), out=tmp[3])
+        v5 = self.lower.normalize(v4.tensor(), out=out)
         return v5
 
     # positional_encodings: (x)D batch of HVs
     # encodings: (x)D batch of HVs
     # returns: (x-1)D batch of HVs
-    def value_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor) -> TensorProxy:
-        v1 = mult(positional_encodings, encodings)
-        v2 = add_grouped(v1, dim=-4)
-        v3 = normalize(v2)
+    def value_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor, *, out: Path) -> TensorProxy:
+        tmp = self.__tmp_gen.new_paths(2)
+        
+        v1 = self.lower.matrix_mult(positional_encodings, encodings, out=tmp[0])
+        v2 = self.sum_hvs(v1.tensor(), out=tmp[1])
+        v3 = self.lower.normalize(v2.tensor(), out=out)
         return v3
-
+    
+    def softmax_hv(hv: torch.Tensor, *, out: Path) -> torch.Tensor:
+        tensor = hv.tensor().transpose(-3, -1)
+        result = self.lower.softmax(tensor, out=out)
+        return result.tensor().transpose(-3, -1)
+    
     # query_hv: HV
     # key_hv: HV
     # value_hv: HV
     # returns: HV
-    def attention_function(self, query_hv: torch.Tensor, key_hv: torch.Tensor, value_hv: torch.Tensor) -> TensorProxy:
-        v1 = torch.adjoint(key_hv)
-        v2 = mult(query_hv, v1)
-        v3 = v2.real
-        v4 = torch.nn.functional.softmax(v3, dim=-3).type(torch.complex64)
-        v5 = mult(v4, value_hv)
-        v6 = normalize(v5)
+    def attention_function(self, query_hv: torch.Tensor, key_hv: torch.Tensor, value_hv: torch.Tensor, *, out: Path) -> TensorProxy:
+        tmp = self.__tmp_gen.new_paths(5)
+        
+        v1 = self.lower.adjoint(key_hv, out=tmp[0])
+        v2 = self.lower.matrix_mult(query_hv, v1.tensor(), out=tmp[1])
+        v3 = self.lower.real(v2.tensor(), out=tmp[2])
+        t4 = self.lower.softmax(v3.tensor(), out=tmp[3])
+        v5 = self.lower.matrix_mult(t4, value_hv, out=tmp[4])
+        v6 = self.lower.normalize(v5.tensor(), out=out)
         return v6
 
     # a: (x)D batch of HVs
     # b: (x)D batch of HVs
     # returns: (x)D batch of floating-point numbers from 0 to 1
-    def unnormalized_similarity(self, a: torch.Tensor, b: torch.Tensor, *, batch_size: int | None = None) -> TensorProxy:
+    def unnormalized_similarity(self, a: torch.Tensor, b: torch.Tensor, *, out: Path) -> TensorProxy:
         if a.shape != b.shape:
             raise ValueError(f"Cannot calculate similarity on tensors of shape {a.shape} and {b.shape}")
         
@@ -93,43 +113,32 @@ class UpperTensorFunctionsManager:
         D = a.shape[-3]
         m = a.shape[-2]
 
-        if batch_size is None:
-            v1 = torch.adjoint(b)
-            v2 = mult(a, v1)
-            v3 = torch.sum(v2, dim=-3)
-            v4 = torch.diagonal(v3, dim1=-2, dim2=-1).sum(dim=-1)
-            v5 = torch.real(v4)
-            v6 = v5 / (m * D)
-            return v6
-        else:
-            res_shape = shape[:-3]
-            a_view = a.view(-1, D, m, m)
-            b_view = b.view(-1, D, m, m)
-            num_hvs = a_view.shape[0]
-            
-            res = torch.zeros(size=res_shape, device=default_device, dtype=localTypes.hvRealType)
-            res_view = res.view(-1)
-            
-            for i in range(0, num_hvs, batch_size):
-                range_min = i
-                range_max = min(i + batch_size, num_hvs)
-                
-                res_view[range_min:range_max] = unnormalized_similarity( \
-                    a_view[range_min:range_max, ...], \
-                    b_view[range_min:range_max, ...] \
-                )
-            
-            return res
+        tmp = self.__tmp_gen.new_paths(6)
+        
+        v1 = self.lower.adjoint(b, out=tmp[0])
+        v2 = self.lower.matrix_mult(a, v1.tensor(), out=tmp[1])
+        v3 = self.lower.summation(v2.tensor().transpose(-3, -2).transpose(-2, -1), out=tmp[2])
+        v4 = self.lower.diagonal(v3.tensor(), out=tmp[3])
+        v4_5 = self.lower.summation(v4.tensor(), out=tmp[4])
+        v5 = self.lower.real(v4_5.tensor(), out=tmp[5])
+        v6 = self.lower.divide_by_scalar(v5.tensor(), m * D, out=out)
+        
+        return v6
 
     # a: (x)D batch of HVs
     # b: (x)D batch of HVs
     # returns: (x)D batch of floating-point numbers from 0 to 1
-    def normalized_similarity(self, a: torch.Tensor, b: torch.Tensor, *, batch_size: int | None = None) -> TensorProxy:
-        mid = unnormalized_similarity(a, b, batch_size=batch_size)
-        v1 = unnormalized_similarity(a, a, batch_size=batch_size)
-        v2 = unnormalized_similarity(b, b, batch_size=batch_size)
+    def normalized_similarity(self, a: torch.Tensor, b: torch.Tensor, *, out: Path) -> TensorProxy:
+        tmp = self.__tmp_gen.new_paths(3)
         
-        return mid / torch.sqrt(v1 * v2)
+        mid = self.unnormalized_similarity(a, b, out=tmp[0])
+        v1 = self.unnormalized_similarity(a, a, out=tmp[1])
+        v2 = self.unnormalized_similarity(b, b, out=tmp[2])
+        
+        v3 = self.lower.matrix_mult(v1.tensor(), v2.tensor(), out=tmp[3])
+        v4 = self.lower.sqrt(v3.tensor(), out=tmp[4])
+        result = self.lower.div(mid.tensor(), v4.tensor(), out=out)
+        return result
     
     """
     def torch_fromfunction( \

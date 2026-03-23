@@ -9,8 +9,6 @@ from functools import reduce
 
 import torch
 
-from device import default_device
-
 # TODO: Find out where these functions should be located
 
 T = TypeVar('T')
@@ -139,11 +137,11 @@ def find_unique_path(path_input: str | Path) -> Path:
     
     return res
 
-def get_range_tensor(upper_limit: int) -> torch.Tensor:
-    return torch.tensor(tuple(range(upper_limit)), dtype=torch.int8, device=default_device)
+def get_range_tensor(upper_limit: int, *, device: torch.device) -> torch.Tensor:
+    return torch.tensor(tuple(range(upper_limit)), dtype=torch.int8, device=device)
 
-def get_single_tensor(n: float) -> torch.Tensor:
-    return torch.tensor(n, dtype=torch.float32, device=default_device)
+def get_single_tensor(n: float, *, device: torch.device) -> torch.Tensor:
+    return torch.tensor(n, dtype=torch.float32, device=device)
 
 # Changes the input parameter
 def proportional_split(input: list[T], proportion: float) -> tuple[tuple[T, ...], tuple[T, ...]]:

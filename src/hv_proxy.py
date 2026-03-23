@@ -3,7 +3,6 @@ from collections.abc import Iterable, Sequence
 
 import torch
 
-from device import default_device
 from fs_organization import FsOrganizer
 from tudataset import get_ids_to_labels_mapping
 from constants import D, m

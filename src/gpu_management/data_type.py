@@ -31,7 +31,7 @@ class DataType:
         try:
             return next(v for v in _data_types if v.value == dtype)
         except StopIteration:
-            raise ValueError(f"Invalid DataType value: {repr(name)}")
+            raise ValueError(f"Invalid DataType value: {repr(dtype)}")
     
     def to_real(self) -> "DataType":
         if self._to_real is None:
