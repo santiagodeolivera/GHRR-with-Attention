@@ -7,6 +7,7 @@ from pathlib import Path
 from utils import approximation as get_approximation
 import shutil
 from tudataset import get_dataset_main
+from fn_context import FnContext
 
 def get_parameter(name: str) -> str:
     result = os.environ.get(name, None)
@@ -15,7 +16,9 @@ def get_parameter(name: str) -> str:
     
     return result
 
-def execute_graphhd(root: FsOrganizer) -> None:
+def execute_graphhd(ctx: FnContext) -> None:
+    root = ctx.fs
+    
     counter = 0
     
     output_root = root.root / "comparisons"
@@ -79,7 +82,9 @@ def execute_graphhd(root: FsOrganizer) -> None:
                 json.dump(result_data, output_file)
             counter += 1
 
-def find_closeness_approximation(root: FsOrganizer) -> None:
+def find_closeness_approximation(ctx: FnContext) -> None:
+    root = ctx.fs
+    
     def get_proportion_coincidences(path: Path) -> float:
         with open(path, "r") as file:
             data = json.load(file)
@@ -93,7 +98,7 @@ def find_closeness_approximation(root: FsOrganizer) -> None:
         json.dump(approximation, file)
         
 # Compare with GraphHD
-def get_action(action_id: int) -> Callable[[FsOrganizer], None]:
+def get_action(action_id: int) -> Callable[[FnContext], None]:
     if action_id < 0:
         raise ValueError("Out of bounds")
     elif action_id == 0:

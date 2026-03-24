@@ -6,6 +6,7 @@ import torch
 from fs_organization import FsOrganizer
 from tudataset import get_ids_to_labels_mapping
 from constants import D, m
+from gpu_management import TensorProxy, DataType
 
 def f1(id: int, ids_to_labels: tuple[int, ...], root: FsOrganizer) -> "HVProxy":
     label = ids_to_labels[id]
@@ -16,12 +17,24 @@ def f1(id: int, ids_to_labels: tuple[int, ...], root: FsOrganizer) -> "HVProxy":
 class HVProxy:
     __id: int
     __label: int
-    __path: Path
+    __tensor_proxy: TensorProxy
     
     def __init__(self, id: int, label: int, path: Path):
         self.__id = id
         self.__label = label
-        self.__path = path
+        
+        tensor_proxy = TensorProxy.get_if_exists(path)
+        
+        if tensor_proxy is None:
+            raise Exception()
+        
+        if tensor_proxy.shape != (D, m, m):
+            raise Exception()
+        
+        if tensor_proxy.data_type != DataType.complex64:
+            raise Exception()
+        
+        self.__tensor_proxy = tensor_proxy
     
     @property
     def id(self) -> int:
@@ -32,23 +45,26 @@ class HVProxy:
         return self.__label
     
     def get_hv(self, *, out: torch.Tensor | None = None) -> torch.Tensor:
-        if out is None:
-            return torch.load(self.__path, map_location=default_device)
-        else:
-            tmp = torch.load(self.__path, map_location="cpu")
-            out[...] = tmp
+        result = self.__tensor_proxy.tensor()
+        
+        if out is not None:
+            out[...] = result
             return out
+        
+        return result
 
 # Requires defined mapping from ids to labels
 def iter_from_fs(root: FsOrganizer, ids: Iterable[int]) -> Iterable[HVProxy]:
     ids_to_labels = get_ids_to_labels_mapping(root.ids_to_labels)
     return ( f1(id, ids_to_labels, root) for id in ids )
 
-def iter_to_batch(proxies: Sequence[HVProxy]) -> torch.Tensor:
+def iter_to_batch(proxies: Sequence[HVProxy], out: Path) -> TensorProxy:
     length = len(proxies)
-    result = torch.zeros(length, D, m, m, dtype=torch.complex64, device=default_device)
+    result = TensorProxy.empty_override((length, D, m, m), out, DataType.complex64)
+    result_tensor = result.tensor()
     
     for i, proxy in enumerate(proxies):
-        proxy.get_hv(out=result[i])
+        proxy.get_hv(out=result_tensor[i])
     
     return result
+

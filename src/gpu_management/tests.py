@@ -19,9 +19,9 @@ def addition_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((10, 10, 10, 10, 10), root / "a1", DataType.complex64)
+    p1 = fns.randn((10, 10, 10, 10, 10), DataType.complex64, out=root / "a1")
     t1 = p1.tensor()
-    p2 = fns.randn((10, 10, 10, 10, 10), root / "a2", DataType.complex64)
+    p2 = fns.randn((10, 10, 10, 10, 10), DataType.complex64, out=root / "a2")
     t2 = p2.tensor()
     p3 = fns.addition(t1, t2, out=root / "a3")
     t3 = p3.tensor()
@@ -34,9 +34,9 @@ def matrix_mult_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((5, 4, 3, 10, 2), root / "mm1", DataType.complex64)
+    p1 = fns.randn((5, 4, 3, 10, 2), DataType.complex64, out=root / "mm1")
     t1 = p1.tensor()
-    p2 = fns.randn((5, 4, 3, 2, 4), root / "mm2", DataType.complex64)
+    p2 = fns.randn((5, 4, 3, 2, 4), DataType.complex64, out=root / "mm2")
     t2 = p2.tensor()
     p3 = fns.matrix_mult(t1, t2, out=root / "mm3")
     t3 = p3.tensor()
@@ -49,9 +49,9 @@ def softmax_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((5, 4, 2, 3, 10), root / "softmax1", DataType.float32)
+    p1 = fns.randn((5, 4, 2, 3, 10), DataType.float32, out=root / "softmax1")
     t1 = p1.tensor()
-    p2 = fns.softmax(t1, root / "softmax2")
+    p2 = fns.softmax(t1, out=root / "softmax2")
     t2 = p2.tensor()
     
     result = torch.nn.functional.softmax(t1, dim=-1)
@@ -62,11 +62,11 @@ def summation_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((5, 4, 2, 3, 10), root / "summation", DataType.complex64)
+    p1 = fns.randn((5, 4, 2, 3, 10), DataType.complex64, out=root / "summation")
     t1 = p1.tensor()
-    p2 = fns.summation(t1, 1, root / "summation2")
+    p2 = fns.summation(t1, 1, out=root / "summation2")
     t2 = p2.tensor()
-    p3 = fns.summation(t1, 2, root / "summation3")
+    p3 = fns.summation(t1, 2, out=root / "summation3")
     t3 = p3.tensor()
     
     result2 = t1.sum(dim=-1)

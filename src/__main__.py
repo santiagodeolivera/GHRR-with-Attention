@@ -11,15 +11,21 @@ import json
 from encode_graphs import action_create_hv
 from tudataset import define_ids_to_labels_mapping
 from fs_organization import FsOrganizer
-from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int
+from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int, Timer
 from hv_proxy import iter_from_fs as proxies_from_fs, iter_to_batch as proxies_to_batch
 from model import Model
 from process_results import process_results
 from f2 import func as f2_function
 from f3 import get_action as get_f3_action
+from fn_context import FnContext
+from gpu_management import TensorFunctionsManager, TensorProxy
+from hv_functions import UpperTensorFunctionsManager
 
-def distribute_rows(instance_name: str) -> Callable[[FsOrganizer], None]:
-    def inner(root: FsOrganizer) -> None:
+def distribute_rows(instance_name: str) -> Callable[[FnContext], None]:
+    def inner(ctx: FnContext) -> None:
+        root = ctx.fs
+        functions = ctx.functions
+        
         root.config.model_dir = f"{instance_name}/model"
         root.config.dist_file = f"{instance_name}/dist_file.json"
         root.config.result_file = f"{instance_name}/result_file.json"
@@ -30,21 +36,26 @@ def distribute_rows(instance_name: str) -> Callable[[FsOrganizer], None]:
     
     return inner
 
-def train_model(instance_name: str) -> Callable[[FsOrganizer], None]:
-    def inner(root: FsOrganizer) -> None:
+def train_model(instance_name: str) -> Callable[[FnContext], None]:
+    def inner(ctx: FnContext) -> None:
+        root = ctx.fs
+        functions = ctx.functions
+        
         root.config.model_dir = f"{instance_name}/model"
         root.config.dist_file = f"{instance_name}/dist_file.json"
         root.config.result_file = f"{instance_name}/result_file.json"
         
         train_ids, _ = get_train_and_test_datasets(root.train_and_test_sets_distribution)
         train_proxies = proxies_from_fs(root, train_ids)
-        trained_model = Model.train(train_proxies)
-        trained_model.to_fs(root.model)
+        trained_model = Model.train(functions, train_proxies, root.model)
     
     return inner
     
-def test_model(instance_name: str) -> Callable[[FsOrganizer], None]:
-    def inner(root: FsOrganizer) -> None:
+def test_model(instance_name: str) -> Callable[[FnContext], None]:
+    def inner(ctx: FnContext) -> None:
+        root = ctx.fs
+        functions = ctx.functions
+        
         root.config.model_dir = f"{instance_name}/model"
         root.config.dist_file = f"{instance_name}/dist_file.json"
         root.config.result_file = f"{instance_name}/result_file.json"
@@ -55,8 +66,9 @@ def test_model(instance_name: str) -> Callable[[FsOrganizer], None]:
         test_proxies = tuple(proxies_from_fs(root, test_ids))
         test_expected_labels = tuple(proxy.label for proxy in test_proxies)
         
-        test_data: torch.Tensor = proxies_to_batch(test_proxies)
-        test_result_labels_tensor: torch.Tensor = trained_model.test(test_data)
+        (tmp,) = functions.tmp_gen.new_paths(1)
+        test_data: TensorProxy = proxies_to_batch(test_proxies, out=tmp)
+        test_result_labels_tensor: torch.Tensor = trained_model.test(functions, test_data.tensor())
         test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_tensor)
     
         json_data = json.dumps({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels})
@@ -65,17 +77,17 @@ def test_model(instance_name: str) -> Callable[[FsOrganizer], None]:
     return inner
 
 encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
-def get_action(program_id: int, action_id: int) -> Callable[[FsOrganizer], None] | None:
+def get_action(program_id: int, action_id: int) -> Callable[[FnContext], None] | None:
     if program_id == 1:
         if action_id < 0:
             raise ValueError("Out of bounds")
         elif action_id == 0:
-            return lambda root: root.setup()
+            return lambda ctx: ctx.fs.setup()
         elif action_id < 189:
             g_id = action_id - 1
             return lambda root: action_create_hv(g_id, root)
         elif action_id == 189:
-            return lambda root: define_ids_to_labels_mapping(root.tudataset, root.ids_to_labels)
+            return lambda ctx: define_ids_to_labels_mapping(ctx.fs.tudataset, ctx.fs.ids_to_labels)
         elif action_id < 220:
             counter = action_id - 190
             instance_id = counter // 3
@@ -115,9 +127,8 @@ def get_action(program_id: int, action_id: int) -> Callable[[FsOrganizer], None]
     return None
 
 def main() -> None:
-    if default_device.type != "cuda":
-        print("GPU not available. Exiting")
-        return
+    if not torch.cuda.is_available():
+        raise Exception("CUDA not available")
     
     root_dir_str = os.environ.get("ROOT_DIR", None)
     if root_dir_str is None:
@@ -138,25 +149,19 @@ def main() -> None:
     if action is None:
         raise Exception("Unknown action id")
     
-    mem_history_out_str = os.environ.get("MEM_HISTORY_OUT", None)
-    mem_history_out = Path(mem_history_out_str) if mem_history_out_str is not None else None
-    
     fs_organizer = FsOrganizer(root_dir)
     
-    if mem_history_out is not None:
-        mem_history_out.parent.mkdir(parents=True, exist_ok=True)
+    mem_manager_sizes: dict[str, int] = {
+        "complex64": 1024 * 1024 * 1024 * 3 // 8,
+        "float32":   1024 * 1024 * 1024 * 3 // 4
+    }
+    with TensorFunctionsManager(mem_manager_sizes) as lower_manager:
+        upper_manager = UpperTensorFunctionsManager(lower_manager, lambda n: fs_organizer.root / f"tmp/{n}")
+        ctx = FnContext(fs = fs_organizer, functions = upper_manager)
         
-        torch.cuda.memory._record_memory_history()
-    
-        action(fs_organizer)
-    
-        snapshot = torch.cuda.memory._snapshot()
-        torch.cuda.memory._record_memory_history(enabled=None)
-        with mem_history_out.open("wb") as f:
-            pickle.dump(snapshot, f, protocol=4)
-    else:
-        action(fs_organizer)
-
+        timer = Timer()
+        action(ctx)
+        timer.msg("Action finished")
 
 if __name__ == "__main__":
     main()

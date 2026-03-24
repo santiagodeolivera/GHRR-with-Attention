@@ -54,7 +54,7 @@ class FsOrganizer:
 		return self.__root / self.config.encodings_dir
 	
 	def hv_encoding_of(self, id: int) -> Path:
-		return self.hv_encodings / f"{id}.pt"
+		return self.hv_encodings / f"{id}"
 	
 	@property
 	def base_encodings(self) -> Path:
@@ -62,19 +62,19 @@ class FsOrganizer:
 	
 	@property
 	def query_encodings(self) -> Path:
-		return self.base_encodings / "query.pt"
+		return self.base_encodings / "query"
 	
 	@property
 	def key_encodings_1(self) -> Path:
-		return self.base_encodings / "key1.pt"
+		return self.base_encodings / "key1"
 	
 	@property
 	def key_encodings_2(self) -> Path:
-		return self.base_encodings / "key2.pt"
+		return self.base_encodings / "key2"
 	
 	@property
 	def value_encodings(self) -> Path:
-		return self.base_encodings / "value.pt"
+		return self.base_encodings / "value"
 	
 	@property
 	def ids_to_labels(self) -> Path:

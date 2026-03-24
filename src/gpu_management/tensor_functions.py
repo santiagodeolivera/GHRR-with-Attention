@@ -7,15 +7,13 @@ import torch
 from .tensor_proxy import TensorProxy
 from .memory import MemoryManager
 from .data_type import DataType
-from utils import get_size
+from utils import get_size, get_range_tensor
 
 class TensorFunctionsManager:
     __managers: dict[str, MemoryManager]
-    use_gpu: bool # Do not touch
     
     def __init__(self, manager_mem: dict[str, int]):
         self.__managers = {k: MemoryManager.create(v, DataType.get_by_name(k)) for k, v in manager_mem.items()}
-        self.use_gpu = True
     
     def __enter__(self) -> "TensorFunctionsManager":
         return self
@@ -24,10 +22,39 @@ class TensorFunctionsManager:
         for manager in self.__managers.values():
             manager.__exit__(exc_t, exc_v, exc_tb)
     
-    def randn(self, shape: tuple[int, ...], out: Path, data_type: DataType) -> TensorProxy:
+    def randn(self, shape: tuple[int, ...], data_type: DataType, *, out: Path) -> TensorProxy:
+        manager = self.__managers[data_type.name]
+        
+        size = get_size(shape)
+        max_size = manager.max_mem
+        if max_size <= 0: raise Exception()
+        
+        result = TensorProxy.empty_override(shape, out, data_type)
+        tensor = result.tensor().reshape(-1)
+        
+        (g1,) = manager.alloc_tensors(((max_size,),))
+        
+        start = 0
+        while start < size:
+            stop = min(size, start + max_size)
+            g01 = g1[:stop - start]
+            
+            torch.randn(stop - start, out=g01)
+            
+            tensor[start:stop] = g01
+            start = stop
+        
+        return result
+    
+    def new_from_function(self, shape: tuple[int, ...], data_type: DataType, \
+        function: Callable[[tuple[torch.Tensor, ...]], torch.Tensor], *, out: Path) -> TensorProxy:
         result = TensorProxy.empty_override(shape, out, data_type)
         tensor = result.tensor()
-        torch.randn(shape, dtype=data_type.value, out=tensor)
+        
+        dimensions_range = tuple(get_range_tensor(n) for n in shape)
+        dimensions_mesh = tuple(torch.meshgrid(*dimensions_range, indexing="ij"))
+        
+        tensor[...] = function(dimensions_mesh)
         return result
     
     def element_wise_unary_operation(self, \
@@ -42,27 +69,24 @@ class TensorFunctionsManager:
         max_size = manager.max_mem // 3
         if max_size <= 0: raise Exception()
         
-        t1 = v1.view(-1)
+        t1 = v1.reshape(-1)
         result = TensorProxy.empty_override(v1.shape, out, data_type)
-        t2 = result.tensor().view(-1)
+        t2 = result.tensor().reshape(-1)
         
-        if self.use_gpu:
-            g1, g2 = manager.alloc_tensors((max_size,) for _ in range(2))
+        g1, g2 = manager.alloc_tensors((max_size,) for _ in range(2))
+        
+        start = 0
+        while start < size:
+            stop = min(size, start + max_size)
+            g01 = g1[:stop - start]
+            g02 = g2[:stop - start]
             
-            start = 0
-            while start < size:
-                stop = min(size, start + max_size)
-                g01 = g1[:stop - start]
-                g02 = g2[:stop - start]
-                
-                g01[...] = t1[start:stop]
-                
-                fn(g01, g02)
-                
-                t2[start:stop] = g02
-                start = stop
-        else:
-            fn(t1, t2)
+            g01[...] = t1[start:stop]
+            
+            fn(g01, g02)
+            
+            t2[start:stop] = g02
+            start = stop
         
         return result
     
@@ -85,35 +109,74 @@ class TensorFunctionsManager:
         max_size = manager.max_mem // 3
         if max_size <= 0: raise Exception()
         
-        t1 = v1.view(-1)
-        t2 = v2.view(-1)
+        t1 = v1.reshape(-1)
+        t2 = v2.reshape(-1)
         result = TensorProxy.empty_override(v1.shape, out, data_type)
-        t3 = result.tensor().view(-1)
+        t3 = result.tensor().reshape(-1)
         
-        if self.use_gpu:
-            g1, g2, g3 = manager.alloc_tensors((max_size,) for _ in range(3))
+        g1, g2, g3 = manager.alloc_tensors((max_size,) for _ in range(3))
+        
+        start = 0
+        while start < size:
+            stop = min(size, start + max_size)
+            g01 = g1[:stop - start]
+            g02 = g2[:stop - start]
+            g03 = g3[:stop - start]
             
-            start = 0
-            while start < size:
-                stop = min(size, start + max_size)
-                g01 = g1[:stop - start]
-                g02 = g2[:stop - start]
-                g03 = g3[:stop - start]
-                
-                g01[...] = t1[start:stop]
-                g02[...] = t2[start:stop]
-                
-                fn(g01, g02, g03)
-                
-                t3[start:stop] = g03
-                start = stop
-        else:
-            fn(t1, t2, t3)
+            g01[...] = t1[start:stop]
+            g02[...] = t2[start:stop]
+            
+            fn(g01, g02, g03)
+            
+            t3[start:stop] = g03
+            start = stop
         
         return result
 
+    def element_wise_binary_operation_self_modify(self, \
+        v1: torch.Tensor, \
+        v2: torch.Tensor, \
+        fn: Callable[[torch.Tensor, torch.Tensor], Any] \
+    ) -> torch.Tensor:
+        if v1.dtype != v2.dtype:
+            raise Exception()
+        
+        data_type = DataType.get_by_dtype(v1.dtype)
+        manager = self.__managers[data_type.name]
+        
+        if v1.shape != v2.shape:
+            raise ValueError("Elements must have the same shape")
+        
+        size = get_size(v1.shape)
+        max_size = manager.max_mem // 2
+        if max_size <= 0: raise Exception()
+        
+        t1 = v1.reshape(-1)
+        t2 = v2.reshape(-1)
+        
+        g1, g2 = manager.alloc_tensors((max_size,) for _ in range(2))
+        
+        start = 0
+        while start < size:
+            stop = min(size, start + max_size)
+            g01 = g1[:stop - start]
+            g02 = g2[:stop - start]
+            
+            g01[...] = t1[start:stop]
+            g02[...] = t2[start:stop]
+            
+            fn(g01, g02)
+            
+            t1[start:stop] = g01
+            start = stop
+        
+        return t1
+    
     def addition(self, v1: torch.Tensor, v2: torch.Tensor, *, out: Path) -> TensorProxy:
         return self.element_wise_binary_operation(v1, v2, lambda t1, t2, t3: torch.add(t1, t2, out=t3), out)
+    
+    def assign_addition(self, v1: torch.Tensor, v2: torch.Tensor) -> torch.Tensor:
+        return self.element_wise_binary_operation_self_modify(v1, v2, lambda t1, t2: torch.add(t1, t2, out=t1))
     
     def summation(self, v1: torch.Tensor, unit_dims: int, *, out: Path) -> TensorProxy:
         data_type = DataType.get_by_dtype(v1.dtype)
@@ -131,9 +194,9 @@ class TensorFunctionsManager:
         batch_size = get_size(batch_shape)
         unit_size = get_size(unit_shape)
         
-        t1 = v1.view(-1, unit_size)
+        t1 = v1.reshape(-1, unit_size)
         result = TensorProxy.empty_override(batch_shape, out, data_type)
-        t2 = result.tensor().view(-1)
+        t2 = result.tensor().reshape(-1)
         
         t2[...] = torch.sum(t1, dim=1)
         
@@ -147,7 +210,7 @@ class TensorFunctionsManager:
     
     def matrix_mult(self, v1: torch.Tensor, v2: torch.Tensor, *, out: Path) -> TensorProxy:
         if v1.dtype != v2.dtype:
-            raise Exception()
+            raise Exception(f"The dtypes of the two tensors do not match ({v1.dtype} and {v2.dtype})")
         
         data_type = DataType.get_by_dtype(v1.dtype)
         manager = self.__managers[data_type.name]
@@ -170,10 +233,10 @@ class TensorFunctionsManager:
         max_parallel_operations = manager.max_mem // mem_per_op
         if max_parallel_operations <= 0: raise Exception()
         
-        t1 = v1.view(-1, rows, n)
-        t2 = v2.view(-1, n, cols)
+        t1 = v1.reshape(-1, rows, n)
+        t2 = v2.reshape(-1, n, cols)
         result = TensorProxy.empty_override((*shape1[:-2], rows, cols), out, data_type)
-        t3 = result.tensor().view(-1, rows, cols)
+        t3 = result.tensor().reshape(-1, rows, cols)
         
         g1, g2, g3 = manager.alloc_tensors( \
             (max_parallel_operations, a, b) for a, b in ((rows, n), (n, cols), (rows, cols)) \
@@ -225,7 +288,7 @@ class TensorFunctionsManager:
         data_type = DataType.get_by_dtype(t1.dtype)
         result_type = data_type.to_real()
         
-        result = TensorProxy.empty_override(v1.shape, out, result_type)
+        result = TensorProxy.empty_override(t1.shape, out, result_type)
         t2 = result.tensor()
         
         t2[...] = t1.real
@@ -249,38 +312,30 @@ class TensorFunctionsManager:
         max_parallel_operations = manager.max_mem // mem_per_op
         if max_parallel_operations <= 0: raise Exception()
         
-        t1 = v1.view(-1, vector_length)
+        t1 = v1.reshape(-1, vector_length)
         result = TensorProxy.empty_override(shape, out, data_type)
-        t2 = result.tensor().view(-1, vector_length)
+        t2 = result.tensor().reshape(-1, vector_length)
         
-        if self.use_gpu:
-            g1, g2, g_unit = manager.alloc_tensors( \
-                (max_parallel_operations, *n) for n in ((vector_length,), (vector_length,), (1,)) \
-            )
+        g1, g2, g_unit = manager.alloc_tensors( \
+            (max_parallel_operations, *n) for n in ((vector_length,), (vector_length,), (1,)) \
+        )
+        
+        start = 0
+        while start < num_vectors:
+            stop = min(num_vectors, start + max_parallel_operations)
+            g01 = g1[:stop - start]
+            g02 = g2[:stop - start]
+            g0unit = g_unit[:stop - start]
             
-            start = 0
-            while start < num_vectors:
-                stop = min(num_vectors, start + max_parallel_operations)
-                g01 = g1[:stop - start]
-                g02 = g2[:stop - start]
-                g0unit = g_unit[:stop - start]
-                
-                g01[...] = t1[start:stop]
-                torch.amax(g01, dim=1, keepdim=True, out=g0unit)
-                torch.sub(g01, g0unit, out=g02)
-                torch.exp(g02, out=g02)
-                torch.sum(g02, dim=1, keepdim=True, out=g0unit)
-                torch.div(g02, g0unit, out=g02)
-                
-                t2[start:stop] = g02
-                start = stop
-        else:
-            t_unit = torch.empty(num_vectors, 1, dtype=data_type.value)
-            torch.amax(t1, dim=1, keepdim=True, out=t_unit)
-            torch.sub(t1, t_unit, out=t2)
-            torch.exp(t2, out=t2)
-            torch.sum(t2, dim=1, keepdim=True, out=t_unit)
-            torch.div(t2, t_unit, out=t2)
+            g01[...] = t1[start:stop]
+            torch.amax(g01, dim=1, keepdim=True, out=g0unit)
+            torch.sub(g01, g0unit, out=g02)
+            torch.exp(g02, out=g02)
+            torch.sum(g02, dim=1, keepdim=True, out=g0unit)
+            torch.div(g02, g0unit, out=g02)
+            
+            t2[start:stop] = g02
+            start = stop
         
         return result
     

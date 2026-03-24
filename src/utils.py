@@ -13,27 +13,14 @@ import torch
 
 T = TypeVar('T')
 
-def not_none(v: T | None) -> TypeGuard[T]:
-    return v is not None
-
-def is_bool(v: T | bool) -> TypeGuard[bool]:
-    return isinstance(v, bool)
-
-def is_str(v: T | str) -> TypeGuard[str]:
-    return isinstance(v, str)
-
-def value_or(v: T | None, default: T) -> T:
-    return v if not_none(v) else default
-
 def check_int(v: Any) -> int:
-    t = type(v)
-    if t != int:
-        raise ValueError(f"Expected an int, got {t}")
+    if not isinstance(v, int):
+        raise ValueError(f"Expected an int")
     
     return v
 
 def value_or_else(v: T | None, default_fn: Callable[[], T]) -> T:
-    if not_none(v):
+    if v is not None:
         return v
     
     return default_fn()
@@ -48,6 +35,16 @@ def calc_time_difference(before: int, after: int):
     time_difference_dec = time_difference  % 100
 
     return f"{time_difference_int}.{time_difference_dec:02} s"
+
+class Timer:
+    start: int
+    
+    def __init__(self) -> None:
+        self.start = time.time_ns()
+    
+    def msg(self, s: str) -> None:
+        end = time.time_ns()
+        print(s, f"(took {calc_time_difference(self.start, end)})")
 
 def torch_cantor_pairing(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     a = torch.where(a >= 0, a * 2, a * (-2) - 1)
@@ -77,42 +74,6 @@ def log(value: T, msg: str | None = None, show: bool | Callable[[T], Any] = Fals
     
     return value
 
-class ICheckpointContext(Protocol):
-    def print(self, msg: str) -> None: ...
-    
-    def log(self, msg: str, value: T) -> T:
-        self.print(msg)
-        return value
-
-class CheckpointContext(ICheckpointContext):
-    name: str
-    start_time: int
-    last_time: int
-    
-    def __init__(self, name: str, *, msg: str | None = None):
-        self.start_time = time.time_ns()
-        self.last_time = self.start_time
-        
-        self.name = name
-        
-        if msg is not None:
-            self.print(msg)
-        
-    def print(self, msg: str) -> None:
-        current_time = time.time_ns()
-        diff_from_start = calc_time_difference(self.start_time, current_time)
-        diff_from_last = calc_time_difference(self.last_time, current_time)
-        self.last_time = current_time
-        print()
-        print(f"Checkpoint context: {self.name}")
-        print(diff_from_last, "since last checkpoint")
-        print(diff_from_start, "since checkpoint context definition")
-        print(msg)
-
-class VoidCheckpointContext(ICheckpointContext):
-    def print(self, msg: str) -> None:
-        pass
-
 def print_tensor_struct(t: torch.Tensor) -> str:
     v1 = t.dtype
     v2 = ", ".join(str(x) for x in t.shape)
@@ -137,10 +98,10 @@ def find_unique_path(path_input: str | Path) -> Path:
     
     return res
 
-def get_range_tensor(upper_limit: int, *, device: torch.device) -> torch.Tensor:
+def get_range_tensor(upper_limit: int, *, device: torch.device | None = None) -> torch.Tensor:
     return torch.tensor(tuple(range(upper_limit)), dtype=torch.int8, device=device)
 
-def get_single_tensor(n: float, *, device: torch.device) -> torch.Tensor:
+def get_single_tensor(n: float, *, device: torch.device | None = None) -> torch.Tensor:
     return torch.tensor(n, dtype=torch.float32, device=device)
 
 # Changes the input parameter

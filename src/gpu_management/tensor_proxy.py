@@ -2,11 +2,12 @@ from pathlib import Path
 import json
 from typing import Any
 import shutil
+import os
 
 import torch
 
 from .memory import MemoryManager
-from .constants import SliceInfo, DataType
+from .data_type import DataType
 from utils import get_size
 
 types_dict: set[tuple[str, Any]] = {
@@ -38,6 +39,12 @@ class TensorProxy:
         return TensorProxy.__empty(shape, path, data_type)
     
     @staticmethod
+    def zeros_override(shape: tuple[int, ...], path: Path, data_type: DataType) -> "TensorProxy":
+        result = TensorProxy.empty_override(shape, path, data_type)
+        result.tensor()[...] = 0
+        return result
+    
+    @staticmethod
     def empty(shape: tuple[int, ...], path: Path, data_type: DataType) -> "TensorProxy":
         if TensorProxy.exists(path):
             raise Exception(f"TensorProxy in {path} already exists")
@@ -53,9 +60,8 @@ class TensorProxy:
         json_path.parent.mkdir(parents=True, exist_ok=True)
         
         length = get_size(shape)
-        with open(tensor_path, "wb") as f:
-            for _ in range(length * data_type.size):
-                f.write(b'\x00')
+        tensor_path.touch(exist_ok=True)
+        os.truncate(tensor_path, length * data_type.size)
         
         json_data = {
             "shape": shape,
