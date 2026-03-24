@@ -7,7 +7,7 @@ from fs_organization import FsOrganizer
 from tudataset import get_ids_to_labels_mapping
 from constants import D, m
 from gpu_management import DataType
-from utils import MmapTensors
+from mmap_tensors import MmapTensors
 
 def f1(id: int, ids_to_labels: tuple[int, ...], root: FsOrganizer) -> "HVProxy":
     label = ids_to_labels[id]

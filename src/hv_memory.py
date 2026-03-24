@@ -3,7 +3,8 @@ from pathlib import Path
 
 from gpu_management import DataType, TensorFunctionsManager
 from constants import D, m
-from utils import Timer, MmapTensors
+from utils import Timer
+from mmap_tensors import MmapTensors
 
 def get_random_hvs(manager: TensorFunctionsManager, path: Path, length: int) -> torch.Tensor:
     if MmapTensors.exists(path):

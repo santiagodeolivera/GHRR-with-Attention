@@ -9,7 +9,7 @@ import torch
 from .memory import MemoryManager
 from .tensor_functions import TensorFunctionsManager
 from .data_type import DataType
-from utils import MmapTensors
+from mmap_tensors import MmapTensors
 
 @dataclass
 class TestContext:

@@ -7,12 +7,13 @@ import torch
 
 from hv_functions import UpperTensorFunctionsManager
 from hv_memory import get_random_hvs
-from utils import get_range_tensor, commutative_cantor_pairing, Timer, MmapTensors
+from utils import get_range_tensor, commutative_cantor_pairing, Timer
 from tudataset import get_dataset_main, get_graph_dataset
 from constants import D, m
 from fs_organization import FsOrganizer
 from gpu_management import TensorFunctionsManager, DataType
 from fn_context import FnContext
+from mmap_tensors import MmapTensors
 
 def get_position_encodings(manager: TensorFunctionsManager, out: torch.Tensor | None = None) -> torch.Tensor:
     max_num_nodes = get_dataset_main().max_num_nodes

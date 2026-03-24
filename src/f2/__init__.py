@@ -44,12 +44,17 @@ def func(ctx: FnContext) -> None:
                     hv1 = proxy1.get_hv(out=hv1)
                     hv2 = proxy2.get_hv(out=hv2)
                     similarity = functions.normalized_similarity(hv1, hv2)
+                    print("DEBUG 0", proxy1.id)
+                    print("DEBUG 1", proxy2.id)
+                    print("DEBUG 2", proxy1._HVProxy__path)
+                    print("DEBUG 3", proxy2._HVProxy__path)
+                    print("DEBUG 4", torch.allclose(hv1, hv2))
                     mid_raw_data[f"{proxy1.id},{proxy2.id}"] = similarity.item()
             approximations[f"{label1},{label2}"] = approximation(tuple(mid_raw_data.values()))
             raw_data[f"{label1},{label2}"] = mid_raw_data
     
-    json_res = json.dumps({"approximations": approximations, "raw_data": raw_data})
-    root.result_file.write_text(json_res)
- 
+    with open(root.result_file, "w") as file:
+        json.dump({"approximations": approximations, "raw_data": raw_data}, file)
+
 __all__ = ["func"]
 

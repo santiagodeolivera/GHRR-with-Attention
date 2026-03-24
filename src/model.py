@@ -7,7 +7,7 @@ from constants import D, m
 from hv_proxy import HVProxy
 from hv_functions import UpperTensorFunctionsManager
 from gpu_management import DataType
-from utils import MmapTensors
+from mmap_tensors import MmapTensors
 
 def get_class_hv_from_file(path: Path) -> tuple[int, torch.Tensor]:
     id = int(path.stem)

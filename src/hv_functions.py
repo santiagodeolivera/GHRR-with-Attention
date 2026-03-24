@@ -120,7 +120,7 @@ class UpperTensorFunctionsManager:
         v1 = self.unnormalized_similarity(a, a)
         v2 = self.unnormalized_similarity(b, b)
         
-        v3 = self.lower.matrix_mult(v1, v2)
+        v3 = self.lower.elem_mult(v1, v2)
         v4 = self.lower.sqrt(v3)
         result = self.lower.elem_div(mid, v4, out=out)
         return result
