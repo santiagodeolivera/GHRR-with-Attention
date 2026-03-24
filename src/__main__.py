@@ -21,7 +21,7 @@ from process_results import process_results
 from f2 import func as f2_function
 from f3 import get_action as get_f3_action
 from fn_context import FnContext
-from gpu_management import TensorFunctionsManager, TensorProxy
+from gpu_management import TensorFunctionsManager
 from hv_functions import UpperTensorFunctionsManager
 from get_args import get_arg, get_op_arg
 
@@ -70,9 +70,8 @@ def test_model(instance_name: str) -> Callable[[FnContext], None]:
         test_proxies = tuple(proxies_from_fs(root, test_ids))
         test_expected_labels = tuple(proxy.label for proxy in test_proxies)
         
-        (tmp,) = functions.tmp_gen.new_paths(1)
-        test_data: TensorProxy = proxies_to_batch(test_proxies, out=tmp)
-        test_result_labels_tensor: torch.Tensor = trained_model.test(functions, test_data.tensor())
+        test_data: torch.Tensor = proxies_to_batch(test_proxies)
+        test_result_labels_tensor: torch.Tensor = trained_model.test(functions, test_data)
         test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_tensor)
     
         json_data = json.dumps({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels})

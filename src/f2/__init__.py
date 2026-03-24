@@ -43,8 +43,7 @@ def func(ctx: FnContext) -> None:
                     if proxy1.id > proxy2.id: continue
                     hv1 = proxy1.get_hv(out=hv1)
                     hv2 = proxy2.get_hv(out=hv2)
-                    (tmp,) = functions.tmp_gen.new_paths(1)
-                    similarity = functions.normalized_similarity(hv1, hv2, out=tmp).tensor()
+                    similarity = functions.normalized_similarity(hv1, hv2)
                     mid_raw_data[f"{proxy1.id},{proxy2.id}"] = similarity.item()
             approximations[f"{label1},{label2}"] = approximation(tuple(mid_raw_data.values()))
             raw_data[f"{label1},{label2}"] = mid_raw_data

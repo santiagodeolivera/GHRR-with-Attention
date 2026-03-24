@@ -9,6 +9,7 @@ import torch
 from .memory import MemoryManager
 from .tensor_functions import TensorFunctionsManager
 from .data_type import DataType
+from utils import MmapTensors
 
 @dataclass
 class TestContext:
@@ -19,12 +20,11 @@ def addition_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((10, 10, 10, 10, 10), DataType.complex64, out=root / "a1")
-    t1 = p1.tensor()
-    p2 = fns.randn((10, 10, 10, 10, 10), DataType.complex64, out=root / "a2")
-    t2 = p2.tensor()
-    p3 = fns.addition(t1, t2, out=root / "a3")
-    t3 = p3.tensor()
+    shape = (10,) * 5
+    t1, t2, t3 = tuple(MmapTensors.new_override(root / f"a{n}", shape, DataType.complex64) for n in (1, 2, 3))
+    fns.randn(shape, DataType.complex64, out=t1)
+    fns.randn(shape, DataType.complex64, out=t2)
+    fns.addition(t1, t2, out=t3)
     
     result = t1 + t2
     if not torch.allclose(t3, result):
@@ -34,12 +34,14 @@ def matrix_mult_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((5, 4, 3, 10, 2), DataType.complex64, out=root / "mm1")
-    t1 = p1.tensor()
-    p2 = fns.randn((5, 4, 3, 2, 4), DataType.complex64, out=root / "mm2")
-    t2 = p2.tensor()
-    p3 = fns.matrix_mult(t1, t2, out=root / "mm3")
-    t3 = p3.tensor()
+    t1, t2, t3 = tuple(MmapTensors.new_override(root / f"mm{n}", shape, DataType.complex64) for n, shape in (
+        (1, (5, 4, 3, 10, 2)),
+        (2, (5, 4, 3, 2, 4)),
+        (3, (5, 4, 3, 10, 4))
+    ))
+    fns.randn((5, 4, 3, 10, 2), DataType.complex64, out=t1)
+    fns.randn((5, 4, 3, 2, 4), DataType.complex64, out=t2)
+    fns.matrix_mult(t1, t2, out=t3)
     
     result = t1 @ t2
     if not torch.allclose(t3, result):
@@ -49,10 +51,9 @@ def softmax_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((5, 4, 2, 3, 10), DataType.float32, out=root / "softmax1")
-    t1 = p1.tensor()
-    p2 = fns.softmax(t1, out=root / "softmax2")
-    t2 = p2.tensor()
+    t1, t2 = tuple(MmapTensors.new_override(root / f"softmax{n}", (5, 4, 3, 2, 10), DataType.complex64) for n in (1, 2))
+    fns.randn((5, 4, 2, 3, 10), DataType.float32, out=t1)
+    fns.softmax(t1, out=t2)
     
     result = torch.nn.functional.softmax(t1, dim=-1)
     if not torch.allclose(t2, result):
@@ -62,12 +63,15 @@ def summation_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    p1 = fns.randn((5, 4, 2, 3, 10), DataType.complex64, out=root / "summation")
-    t1 = p1.tensor()
-    p2 = fns.summation(t1, 1, out=root / "summation2")
-    t2 = p2.tensor()
-    p3 = fns.summation(t1, 2, out=root / "summation3")
-    t3 = p3.tensor()
+    t1, t2, t3 = tuple(MmapTensors.new_override(root / f"sum{n}", shape, DataType.complex64) for n, shape in (
+        (1, (5, 4, 2, 3, 10)),
+        (2, (5, 4, 2, 3)),
+        (3, (5, 4, 2))
+    ))
+    
+    fns.randn((5, 4, 2, 3, 10), DataType.complex64, out=t1)
+    fns.summation(t1, 1, out=t2)
+    fns.summation(t1, 2, out=t3)
     
     result2 = t1.sum(dim=-1)
     result3 = t1.sum(dim=(-1, -2))

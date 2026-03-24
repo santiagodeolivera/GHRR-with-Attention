@@ -1,17 +1,18 @@
 import torch
 from pathlib import Path
 
-from gpu_management import DataType, TensorProxy, TensorFunctionsManager
+from gpu_management import DataType, TensorFunctionsManager
 from constants import D, m
-from utils import Timer
+from utils import Timer, MmapTensors
 
-def get_random_hvs(manager: TensorFunctionsManager, file_path: Path, length: int) -> TensorProxy:
-    mid_result = TensorProxy.get_if_exists(file_path)
-    if mid_result is not None:
-        return mid_result
-    
-    timer = Timer("Create random HV tensor in {file_path}")
-    result = manager.randn((length, D, m, m), DataType.complex64, out=file_path)
-    timer.end()
-    return result
-
+def get_random_hvs(manager: TensorFunctionsManager, path: Path, length: int) -> torch.Tensor:
+    if MmapTensors.exists(path):
+        return MmapTensors.read_unsafe(path)
+    else:
+        result = MmapTensors.new_unsafe(path, (length, D, m, m), DataType.complex64)
+        
+        timer = Timer(f"Create random HV tensor in {path}")
+        manager.randn((length, D, m, m), DataType.complex64, out=result)
+        timer.end()
+        
+        return result

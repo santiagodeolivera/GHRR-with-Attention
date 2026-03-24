@@ -6,7 +6,8 @@ import torch
 from fs_organization import FsOrganizer
 from tudataset import get_ids_to_labels_mapping
 from constants import D, m
-from gpu_management import TensorProxy, DataType
+from gpu_management import DataType
+from utils import MmapTensors
 
 def f1(id: int, ids_to_labels: tuple[int, ...], root: FsOrganizer) -> "HVProxy":
     label = ids_to_labels[id]
@@ -17,24 +18,12 @@ def f1(id: int, ids_to_labels: tuple[int, ...], root: FsOrganizer) -> "HVProxy":
 class HVProxy:
     __id: int
     __label: int
-    __tensor_proxy: TensorProxy
+    __path: Path
     
     def __init__(self, id: int, label: int, path: Path):
         self.__id = id
         self.__label = label
-        
-        tensor_proxy = TensorProxy.get_if_exists(path)
-        
-        if tensor_proxy is None:
-            raise Exception()
-        
-        if tensor_proxy.shape != (D, m, m):
-            raise Exception()
-        
-        if tensor_proxy.data_type != DataType.complex64:
-            raise Exception()
-        
-        self.__tensor_proxy = tensor_proxy
+        self.__path = path
     
     @property
     def id(self) -> int:
@@ -45,7 +34,9 @@ class HVProxy:
         return self.__label
     
     def get_hv(self, *, out: torch.Tensor | None = None) -> torch.Tensor:
-        result = self.__tensor_proxy.tensor()
+        result = MmapTensors.read_if_exists(self.__path)
+        if result is None:
+            raise Exception(f"No tensor in {self.__path}")
         
         if out is not None:
             out[...] = result
@@ -58,13 +49,13 @@ def iter_from_fs(root: FsOrganizer, ids: Iterable[int]) -> Iterable[HVProxy]:
     ids_to_labels = get_ids_to_labels_mapping(root.ids_to_labels)
     return ( f1(id, ids_to_labels, root) for id in ids )
 
-def iter_to_batch(proxies: Sequence[HVProxy], out: Path) -> TensorProxy:
+def iter_to_batch(proxies: Sequence[HVProxy], out: torch.Tensor | None = None) -> torch.Tensor:
     length = len(proxies)
-    result = TensorProxy.empty_override((length, D, m, m), out, DataType.complex64)
-    result_tensor = result.tensor()
+    
+    result = out if out is not None else torch.empty(length, D, m, m, dtype=torch.complex64)
     
     for i, proxy in enumerate(proxies):
-        proxy.get_hv(out=result_tensor[i])
+        proxy.get_hv(out=result[i])
     
     return result
 
