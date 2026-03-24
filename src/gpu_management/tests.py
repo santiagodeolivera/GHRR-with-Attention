@@ -96,7 +96,7 @@ def all_tests() -> None:
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
     
-    with TensorFunctionsManager({"complex64": 3000, "float32": 3000}) as fns_manager:
+    with TensorFunctionsManager(3000 * DataType.complex64.size) as fns_manager:
         ctx = TestContext(fns_manager = fns_manager, root = root)
         run_tests(ctx)
         

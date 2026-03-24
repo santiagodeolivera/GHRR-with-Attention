@@ -45,17 +45,17 @@ def create_and_save_hv( \
     tmp = functions.tmp_gen.new_paths(3)
     node_max_id = graph.number_of_nodes()
     
-    timer = Timer()
+    timer = Timer("Calculate Query HV")
     query_hv = functions.query_from_encoded(position_encodings[:node_max_id], query_encodings.tensor()[:node_max_id], \
         out=tmp[0])
-    timer.msg("Query HV calculated")
+    timer.end()
     
-    timer = Timer()
+    timer = Timer("Calculate Value HV")
     value_hv = functions.value_from_encoded(position_encodings[:node_max_id], value_encodings.tensor()[:node_max_id], \
         out=tmp[1])
-    timer.msg("Value HV calculated")
+    timer.end()
     
-    timer = Timer()
+    timer = Timer("Calculate Key HV")
     edge_dict: dict[int, tuple[int, int]] = dict()
     for u, v in graph.edges:
         id = commutative_cantor_pairing(u, v)
@@ -78,7 +78,7 @@ def create_and_save_hv( \
         edge_indices2[..., None, None, None].expand(-1, D, m, m))
     
     key_hv = functions.key_from_encoded(edges1, edges2, key_positions, out=tmp[2])
-    timer.msg("Key HV calculated")
+    timer.end()
     del edge_indices1
     del edge_indices2
     del edges1
@@ -86,9 +86,9 @@ def create_and_save_hv( \
     del key_positions
     # torch.cuda.empty_cache()
     
-    timer = Timer()
+    timer = Timer("Calculate Attention HV")
     res = functions.attention_function(query_hv.tensor(), key_hv.tensor(), value_hv.tensor(), out=out_path)
-    timer.msg("Attention HV calculated")
+    timer.end()
     del query_hv
     del key_hv
     del value_hv

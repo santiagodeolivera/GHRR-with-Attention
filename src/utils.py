@@ -6,6 +6,9 @@ from typing import TypeVar, TypeGuard, Callable, Any, Protocol, Sequence
 from pathlib import Path
 from math import sqrt
 from functools import reduce
+from get_args import get_arg
+from time_start import time_start
+from datetime import datetime
 
 import torch
 
@@ -38,13 +41,26 @@ def calc_time_difference(before: int, after: int):
 
 class Timer:
     start: int
+    name: str
     
-    def __init__(self) -> None:
+    def __init__(self, name: str) -> None:
+        self.name = name
         self.start = time.time_ns()
+        
+        self.__print(self.start, f"{self.name} -> START")
     
-    def msg(self, s: str) -> None:
+    def __print(self, time: int, msg: str) -> None:
+        seconds = time / 1_000_000_000
+        date = datetime.fromtimestamp(seconds)
+        print(f"({date.hour:02}:{date.minute:02}, {calc_time_difference(time_start, time)} since program start) {msg}")
+    
+    def end(self) -> None:
         end = time.time_ns()
-        print(s, f"(took {calc_time_difference(self.start, end)})")
+        self.__print(end, f"{self.name} -> END (took {calc_time_difference(self.start, end)})")
+    
+    def error(self) -> None:
+        end = time.time_ns()
+        self.__print(end, f"{self.name} -> ERROR (took {calc_time_difference(self.start, end)})")
 
 def torch_cantor_pairing(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     a = torch.where(a >= 0, a * 2, a * (-2) - 1)
@@ -114,11 +130,7 @@ def proportional_split(input: list[T], proportion: float) -> tuple[tuple[T, ...]
     return (left, right)
 
 def get_train_and_test_sets_proportion() -> float:
-    proportion_str = os.environ.get("PROPORTION", None)
-    if proportion_str is None:
-        raise Exception("Proportion not defined")
-    
-    return float(proportion_str)
+    return get_arg("PROPORTION", "float")
 
 def define_train_and_test_datasets(path: Path) -> None:
     ids: list[int] = list(range(188))

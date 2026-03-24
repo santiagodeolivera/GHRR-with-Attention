@@ -8,13 +8,7 @@ from utils import approximation as get_approximation
 import shutil
 from tudataset import get_dataset_main
 from fn_context import FnContext
-
-def get_parameter(name: str) -> str:
-    result = os.environ.get(name, None)
-    if result is None:
-        raise Exception(f"Parameter not found: {repr(name)}")
-    
-    return result
+from get_args import get_arg
 
 def execute_graphhd(ctx: FnContext) -> None:
     root = ctx.fs
@@ -27,7 +21,7 @@ def execute_graphhd(ctx: FnContext) -> None:
     
     for instance_id in range(10):
         root.config.dist_file = f"instances/{instance_id}/dist_file.json"
-        graphhd_root = Path(get_parameter("GRAPH_HD_ROOT"))
+        graphhd_root = get_arg("GRAPH_HD_ROOT", "Path")
         subprocess.run(["python", "main.py", f"--distr_file={root.train_and_test_sets_distribution}", f"--dataset={get_dataset_main().name}"], cwd=graphhd_root)
         
         root.config.result_file = f"instances/{instance_id}/result_file.json"

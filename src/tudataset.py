@@ -9,6 +9,8 @@ from torch_geometric.utils import to_networkx as to_networkx_inner
 from typing import Iterable
 import networkx as nx
 
+from utils import Timer
+
 """
 Assumptions:
 	The graphs are always presented in the same order.
@@ -65,7 +67,10 @@ def get_dataset(root_dir: Path) -> Iterable[Data]:
     if dataset_cache is not None:
 	    return dataset_cache
     
-    dataset: Iterable[Data] = TUDataset(root=str(root_dir), name=get_dataset_main().name)
+    name = get_dataset_main().name
+    timer = Timer(f"Load TUDataset dataset {repr(name)}")
+    dataset: Iterable[Data] = TUDataset(root=str(root_dir), name=name)
+    timer.end()
     dataset_cache = dataset
     return dataset
 

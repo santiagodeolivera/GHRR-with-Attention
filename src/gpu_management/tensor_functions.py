@@ -12,8 +12,15 @@ from utils import get_size, get_range_tensor
 class TensorFunctionsManager:
     __managers: dict[str, MemoryManager]
     
-    def __init__(self, manager_mem: dict[str, int]):
-        self.__managers = {k: MemoryManager.create(v, DataType.get_by_name(k)) for k, v in manager_mem.items()}
+    def __init__(self, max_bytes: int):
+        max_mem = max_bytes // DataType.complex64.size
+        
+        complex_manager, float_manager = MemoryManager.create_two(max_mem)
+        
+        self.__managers = {
+            "complex64": complex_manager,
+            "float32": float_manager
+        }
     
     def __enter__(self) -> "TensorFunctionsManager":
         return self
@@ -296,12 +303,10 @@ class TensorFunctionsManager:
         return result
     
     def softmax(self, v1: torch.Tensor, *, out: Path) -> TensorProxy:
-        data_type = DataType.get_by_dtype(v1.dtype)
+        if v1.dtype != torch.float32:
+            raise Exception("Softmax function invalid for any type other than float32")
         
-        if not data_type.is_real():
-            raise Exception()
-        
-        manager = self.__managers[data_type.name]
+        manager = self.__managers["float32"]
         
         shape = v1.shape
         
@@ -313,7 +318,7 @@ class TensorFunctionsManager:
         if max_parallel_operations <= 0: raise Exception()
         
         t1 = v1.reshape(-1, vector_length)
-        result = TensorProxy.empty_override(shape, out, data_type)
+        result = TensorProxy.empty_override(shape, out, DataType.float32)
         t2 = result.tensor().reshape(-1, vector_length)
         
         g1, g2, g_unit = manager.alloc_tensors( \

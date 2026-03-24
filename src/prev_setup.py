@@ -1,9 +1,9 @@
 from tudataset import set_dataset_main
 import os
 
-dataset_name = os.environ.get("DATASET", None)
-if dataset_name is None:
-    raise Exception("Dataset not defined")
+from get_args import get_arg
+
+dataset_name = get_arg("DATASET", "str")
 
 set_dataset_main(dataset_name)
 

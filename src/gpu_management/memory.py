@@ -34,10 +34,14 @@ class MemoryManager:
         return self.__tensor
     
     @staticmethod
-    def create(max_mem: int, data_type: DataType) -> "MemoryManager":
-        tensor = torch.empty(max_mem, dtype=data_type.value, device="cuda:0")
-        result = MemoryManager(tensor, max_mem, data_type)
-        return result
+    def create_two(max_mem: int) -> "tuple[MemoryManager, MemoryManager]":
+        tensor1 = torch.empty(max_mem, dtype=torch.complex64, device="cuda:0")
+        result1 = MemoryManager(tensor1, max_mem, DataType.complex64)
+        
+        tensor2 = torch.view_as_real(tensor1).view(-1)
+        result2 = MemoryManager(tensor2, max_mem, DataType.float32)
+        
+        return (result1, result2)
     
     def alloc_tensors(self, shapes0: Iterable[tuple[int, ...]]) -> tuple[torch.Tensor, ...]:
         shapes: Sequence[tuple[int, ...]] = tuple(shapes0)

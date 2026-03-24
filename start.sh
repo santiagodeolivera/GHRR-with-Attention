@@ -26,24 +26,5 @@ fi
 exec_path="$(dirname "$0")"
 exec_path="$exec_path/src"
 
-i="$START"
-
-while true; do
-	export ACTION_ID=$i
-	echo "Starting action $ACTION_ID"
-	export MEM_HISTORY_OUT="$MEM_HISTORY_DIR/$PROGRAM_ID-$ACTION_ID.pkl"
-	python "$exec_path"
-	el="$?"
-	echo "Action $i ended"
-
-	if [[ "$i" == "$END" ]]; then
-		break
-	fi
-
-	if [[ "$el" != 0 ]]; then
-		break
-	fi
-
-	i=$((i+1))
-done
+python "$exec_path"
 

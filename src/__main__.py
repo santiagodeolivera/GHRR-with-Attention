@@ -1,4 +1,8 @@
+import time_start
 import prev_setup
+from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int, Timer
+
+setup_timer = Timer("Initial setup")
 
 import os
 import torch
@@ -11,7 +15,6 @@ import json
 from encode_graphs import action_create_hv
 from tudataset import define_ids_to_labels_mapping
 from fs_organization import FsOrganizer
-from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int, Timer
 from hv_proxy import iter_from_fs as proxies_from_fs, iter_to_batch as proxies_to_batch
 from model import Model
 from process_results import process_results
@@ -20,6 +23,7 @@ from f3 import get_action as get_f3_action
 from fn_context import FnContext
 from gpu_management import TensorFunctionsManager, TensorProxy
 from hv_functions import UpperTensorFunctionsManager
+from get_args import get_arg, get_op_arg
 
 def distribute_rows(instance_name: str) -> Callable[[FnContext], None]:
     def inner(ctx: FnContext) -> None:
@@ -80,7 +84,7 @@ encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
 def get_action(program_id: int, action_id: int) -> Callable[[FnContext], None] | None:
     if program_id == 1:
         if action_id < 0:
-            raise ValueError("Out of bounds")
+            return None
         elif action_id == 0:
             return lambda ctx: ctx.fs.setup()
         elif action_id < 189:
@@ -104,19 +108,19 @@ def get_action(program_id: int, action_id: int) -> Callable[[FnContext], None] |
         elif action_id == 220:
             return process_results((f"instances/{x}/result_file.json" for x in range(10)), "results.json")
         else:
-            raise ValueError("Out of bounds")
+            return None
     elif program_id == 2:
         if action_id < 0:
-            raise ValueError("Out of bounds")
+            return None
         elif action_id < 190:
             return get_action(1, action_id)
         elif action_id == 190:
             return f2_function
         else:
-            raise ValueError("Out of bounds")
+            return None
     elif program_id == 3:
         if action_id < 0:
-            raise ValueError("Out of bounds")
+            return None
         elif action_id < 221:
             return get_action(1, action_id)
         else:
@@ -127,41 +131,40 @@ def get_action(program_id: int, action_id: int) -> Callable[[FnContext], None] |
     return None
 
 def main() -> None:
+    vars_timer = Timer("Secondary setup")
+    
     if not torch.cuda.is_available():
         raise Exception("CUDA not available")
     
-    root_dir_str = os.environ.get("ROOT_DIR", None)
-    if root_dir_str is None:
-        raise Exception("Env var ROOT_DIR not present")
-    root_dir = Path(root_dir_str)
+    root_dir = get_arg("ROOT_DIR", "Path")
+    program_id = get_arg("PROGRAM_ID", "int")
     
-    program_id_str = os.environ.get("PROGRAM_ID", None)
-    if program_id_str is None:
-        raise Exception("Env var ROOT_DIR not present")
-    program_id = int(program_id_str)
-
-    action_id_str = os.environ.get("ACTION_ID", None)
-    if action_id_str is None:
-        raise Exception("Env var ACTION_ID not present")
-    action_id = int(action_id_str)
+    start_op = get_op_arg("START", "int")
+    start = start_op if start_op is not None else 0
+    end_op = get_op_arg("END", "int")
+    end = end_op if end_op is not None else 1000
     
-    action = get_action(program_id, action_id)
-    if action is None:
-        raise Exception("Unknown action id")
-    
-    fs_organizer = FsOrganizer(root_dir)
-    
-    mem_manager_sizes: dict[str, int] = {
-        "complex64": 1024 * 1024 * 1024 * 3 // 8,
-        "float32":   1024 * 1024 * 1024 * 3 // 4
-    }
-    with TensorFunctionsManager(mem_manager_sizes) as lower_manager:
-        upper_manager = UpperTensorFunctionsManager(lower_manager, lambda n: fs_organizer.root / f"tmp/{n}")
-        ctx = FnContext(fs = fs_organizer, functions = upper_manager)
+    with TensorFunctionsManager(1024 * 1024 * 1024 * 7) as lower_manager:
+        upper_manager = UpperTensorFunctionsManager(lower_manager, lambda n: root_dir / f"tmp/{n}")
+        vars_timer.end()
         
-        timer = Timer()
-        action(ctx)
-        timer.msg("Action finished")
+        for action_id in range(start, end+1):
+            action = get_action(program_id, action_id)
+            if action is None:
+                raise Exception("Unknown action id")
+            
+            ctx = FnContext(fs = FsOrganizer(root_dir), functions = upper_manager)
+            timer = Timer(f"Program {program_id}, action {action_id}")
+            
+            try:
+                action(ctx)
+            except Exception as e:
+                timer.error()
+                raise e
+            
+            timer.end()
+
+setup_timer.end()
 
 if __name__ == "__main__":
     main()

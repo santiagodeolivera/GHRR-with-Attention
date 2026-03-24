@@ -10,8 +10,8 @@ def get_random_hvs(manager: TensorFunctionsManager, file_path: Path, length: int
     if mid_result is not None:
         return mid_result
     
-    timer = Timer()
+    timer = Timer("Create random HV tensor in {file_path}")
     result = manager.randn((length, D, m, m), DataType.complex64, out=file_path)
-    timer.msg(f"Random HV tensor in {file_path} created")
+    timer.end()
     return result
 
