@@ -51,7 +51,7 @@ def softmax_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    t1, t2 = tuple(MmapTensors.new_override(root / f"softmax{n}", (5, 4, 3, 2, 10), DataType.complex64) for n in (1, 2))
+    t1, t2 = tuple(MmapTensors.new_override(root / f"softmax{n}", (5, 4, 2, 3, 10), DataType.float32) for n in (1, 2))
     fns.randn((5, 4, 2, 3, 10), DataType.float32, out=t1)
     fns.softmax(t1, out=t2)
     
@@ -63,23 +63,35 @@ def summation_test(ctx: TestContext) -> None:
     fns = ctx.fns_manager
     root = ctx.root
     
-    t1, t2, t3 = tuple(MmapTensors.new_override(root / f"sum{n}", shape, DataType.complex64) for n, shape in (
+    t1, t2, t3, t4, t5 = tuple(MmapTensors.new_override(root / f"sum{n}", shape, DataType.complex64) for n, shape in (
         (1, (5, 4, 2, 3, 10)),
         (2, (5, 4, 2, 3)),
-        (3, (5, 4, 2))
+        (3, (5, 4, 2)),
+        (4, (5, 2, 3, 10)),
+        (5, (5, 2, 4, 10))
     ))
     
     fns.randn((5, 4, 2, 3, 10), DataType.complex64, out=t1)
     fns.summation(t1, 1, out=t2)
     fns.summation(t1, 2, out=t3)
+    fns.summation(t1.transpose(-4, -3).transpose(-3, -2).transpose(-2, -1), 1, out=t4)
+    fns.summation(t1.transpose(-4, -3).transpose(-2, -1), 1, out=t5)
     
     result2 = t1.sum(dim=-1)
     result3 = t1.sum(dim=(-1, -2))
+    result4 = t1.sum(dim=-4)
+    result5 = t1.transpose(-4, -3).sum(dim=-2)
     
     if not torch.allclose(t2, result2):
         raise Exception()
     
     if not torch.allclose(t3, result3):
+        raise Exception()
+    
+    if not torch.allclose(t4, result4):
+        raise Exception()
+    
+    if not torch.allclose(t5, result5):
         raise Exception()
 
 tests: dict[str, Callable[[TestContext], None]] = {

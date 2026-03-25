@@ -11,7 +11,8 @@ from utils import get_range_tensor, commutative_cantor_pairing, Timer
 from tudataset import get_dataset_main, get_graph_dataset
 from constants import D, m
 from fs_organization import FsOrganizer
-from gpu_management import TensorFunctionsManager, DataType
+from gpu_management.tensor_functions import TensorFunctionsManager
+from gpu_management.data_type import DataType
 from fn_context import FnContext
 from mmap_tensors import MmapTensors
 

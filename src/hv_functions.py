@@ -5,26 +5,10 @@ from functools import reduce
 from pathlib import Path
 
 from utils import print_tensor_struct
-from gpu_management import TensorFunctionsManager, DataType
+from gpu_management.tensor_functions import TensorFunctionsManager
+from gpu_management.data_type import DataType
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
-
-class TmpGenerator:
-    __counter: int
-    __function: Callable[[int], Path]
-    
-    def __init__(self, function: Callable[[int], Path]):
-        self.__counter = 0
-        self.__function = function
-    
-    def new_paths(self, n: int) -> tuple[Path, ...]:
-        start = self.__counter
-        stop = start + n
-        
-        result = tuple((self.__function)(x) for x in range(start, stop))
-        
-        self.__counter = stop
-        return result
 
 class UpperTensorFunctionsManager:
     lower: TensorFunctionsManager
@@ -124,4 +108,6 @@ class UpperTensorFunctionsManager:
         v4 = self.lower.sqrt(v3)
         result = self.lower.elem_div(mid, v4, out=out)
         return result
+
+__all__ = ["UpperTensorFunctionsManager"]
 

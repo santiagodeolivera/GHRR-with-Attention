@@ -2,7 +2,7 @@ import os
 import json
 from pathlib import Path
 import shutil
-from gpu_management import DataType
+from gpu_management.data_type import DataType
 from utils import get_size, check_int
 
 import torch

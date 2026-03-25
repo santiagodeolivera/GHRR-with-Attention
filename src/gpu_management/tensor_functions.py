@@ -16,7 +16,7 @@ def res_tensor_0(shape: tuple[int, ...], out: torch.Tensor | None, data_type: to
         return torch.empty(shape, dtype=dtype)
     
     if out.dtype != dtype or out.shape != shape:
-        raise ValueError(f"Expected a {shape}[{dtype}] tensor, not a {out.shape}[{out.dtype}] one")
+        raise ValueError(f"Expected a {shape}[{dtype}] tensor, not a {tuple(out.shape)}[{out.dtype}] one")
     
     return out
 

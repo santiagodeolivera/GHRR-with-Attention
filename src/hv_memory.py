@@ -1,7 +1,8 @@
 import torch
 from pathlib import Path
 
-from gpu_management import DataType, TensorFunctionsManager
+from gpu_management.data_type import DataType
+from gpu_management.tensor_functions import TensorFunctionsManager
 from constants import D, m
 from utils import Timer
 from mmap_tensors import MmapTensors

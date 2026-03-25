@@ -21,7 +21,8 @@ from process_results import process_results
 from f2 import func as f2_function
 from f3 import get_action as get_f3_action
 from fn_context import FnContext
-from gpu_management import TensorFunctionsManager
+from gpu_management.tensor_functions import TensorFunctionsManager
+from gpu_management.tests import all_tests as gpu_tests
 from hv_functions import UpperTensorFunctionsManager
 from get_args import get_arg, get_op_arg
 
@@ -130,6 +131,12 @@ def get_action(program_id: int, action_id: int) -> Callable[[FnContext], None] |
     return None
 
 def main() -> None:
+    test_value = get_op_arg("TEST", "bool")
+    
+    if test_value:
+        gpu_tests()
+        return
+    
     vars_timer = Timer("Secondary setup")
     
     if not torch.cuda.is_available():
@@ -143,7 +150,7 @@ def main() -> None:
     end_op = get_op_arg("END", "int")
     end = end_op if end_op is not None else 1000
     
-    with TensorFunctionsManager(1024 * 1024 * 1024 * 7) as lower_manager:
+    with TensorFunctionsManager(1024 * 1024 * 1024 * 4) as lower_manager:
         upper_manager = UpperTensorFunctionsManager(lower_manager, lambda n: root_dir / f"tmp/{n}")
         vars_timer.end()
         
