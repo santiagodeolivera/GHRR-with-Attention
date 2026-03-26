@@ -27,7 +27,6 @@ class MmapTensors:
         size = get_size(shape)
         data_type = DataType.get_by_name(metadata["type"]).value
         
-        print("DEBUG A:", data_path)
         return torch.from_file(str(data_path), size=size, shared=True, dtype=data_type).view(shape)
     
     @staticmethod
@@ -66,6 +65,13 @@ class MmapTensors:
         return MmapTensors.new_unsafe(path, shape, data_type)
     
     @staticmethod
+    def new_unless_exist(path: Path, shape: tuple[int, ...], data_type: DataType) -> torch.Tensor | None:
+        if MmapTensors.exists(path):
+            return None
+        
+        return MmapTensors.new_unsafe(path, shape, data_type)
+    
+    @staticmethod
     def new_or_existing(path: Path, shape: tuple[int, ...], data_type: DataType) -> torch.Tensor:
         if MmapTensors.exists(path):
             result = MmapTensors.read_unsafe(path)
@@ -75,3 +81,4 @@ class MmapTensors:
             return result
         else:
             return MmapTensors.new_unsafe(path, shape, data_type)
+

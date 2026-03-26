@@ -4,7 +4,7 @@ from pathlib import Path
 from gpu_management.data_type import DataType
 from gpu_management.tensor_functions import TensorFunctionsManager
 from constants import D, m
-from utils import Timer
+from time_ import Timer
 from mmap_tensors import MmapTensors
 
 def get_random_hvs(manager: TensorFunctionsManager, path: Path, length: int) -> torch.Tensor:

@@ -13,7 +13,7 @@ from gpu_management.data_type import DataType
 class UpperTensorFunctionsManager:
     lower: TensorFunctionsManager
     
-    def __init__(self, lower: TensorFunctionsManager, function: Callable[[int], Path]):
+    def __init__(self, lower: TensorFunctionsManager):
         self.lower = lower
     
     # hvs: (x)D batch of HVs
@@ -28,8 +28,15 @@ class UpperTensorFunctionsManager:
     # returns: (x-1)D batch of HVs
     def query_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
         v1 = self.lower.matrix_mult(positional_encodings, encodings)
+        del positional_encodings
+        del encodings
+        
         v2 = self.sum_hvs(v1)
+        del v1
+        
         v3 = self.lower.normalize(v2, out=out)
+        del v2
+        
         return v3
 
     # encodings1: (x)D batch of HVs
@@ -39,10 +46,22 @@ class UpperTensorFunctionsManager:
     # Warning: Modifies the input tensors
     def key_from_encoded(self, encodings1: torch.Tensor, encodings2: torch.Tensor, positions2: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
         v1 = self.lower.matrix_mult(encodings2, positions2)
+        del encodings2
+        del positions2
+        
         v2 = self.lower.adjoint(v1)
+        del v1
+        
         v3 = self.lower.matrix_mult(v2, encodings1)
+        del v2
+        del encodings1
+        
         v4 = self.sum_hvs(v3)
+        del v3
+        
         v5 = self.lower.normalize(v4, out=out)
+        del v4
+        
         return v5
 
     # positional_encodings: (x)D batch of HVs
@@ -50,8 +69,15 @@ class UpperTensorFunctionsManager:
     # returns: (x-1)D batch of HVs
     def value_from_encoded(self, positional_encodings: torch.Tensor, encodings: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
         v1 = self.lower.matrix_mult(positional_encodings, encodings)
+        del positional_encodings
+        del encodings
+        
         v2 = self.sum_hvs(v1)
+        del v1
+        
         v3 = self.lower.normalize(v2, out=out)
+        del v2
+        
         return v3
     
     def softmax_hv(self, hv: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
@@ -65,11 +91,25 @@ class UpperTensorFunctionsManager:
     # returns: HV
     def attention_function(self, query_hv: torch.Tensor, key_hv: torch.Tensor, value_hv: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
         v1 = self.lower.adjoint(key_hv)
+        del key_hv
+        
         v2 = self.lower.matrix_mult(query_hv, v1)
+        del query_hv
+        del v1
+        
         v3 = self.lower.real(v2)
+        del v2
+        
         v4 = self.softmax_hv(v3).type(torch.complex64)
+        del v3
+        
         v5 = self.lower.matrix_mult(v4, value_hv)
+        del v4
+        del value_hv
+        
         v6 = self.lower.normalize(v5, out=out)
+        del v5
+        
         return v6
 
     # a: (x)D batch of HVs
@@ -87,12 +127,26 @@ class UpperTensorFunctionsManager:
         m = a.shape[-2]
 
         v1 = self.lower.adjoint(b)
+        del b
+        
         v2 = self.lower.matrix_mult(a, v1)
+        del a
+        del v1
+        
         v3 = self.lower.summation(v2.transpose(-3, -2).transpose(-2, -1), 1)
+        del v2
+        
         v4 = self.lower.diagonal(v3)
+        del v3
+        
         v4_5 = self.lower.summation(v4, 1)
+        del v4
+        
         v5 = self.lower.real(v4_5)
+        del v4_5
+        
         v6 = self.lower.divide_by_scalar(v5, m * D, out=out)
+        del v5
         
         return v6
 
@@ -105,9 +159,16 @@ class UpperTensorFunctionsManager:
         v2 = self.unnormalized_similarity(b, b)
         
         v3 = self.lower.elem_mult(v1, v2)
+        del v1
+        del v2
+        
         v4 = self.lower.sqrt(v3)
+        del v3
+        
         result = self.lower.elem_div(mid, v4, out=out)
+        del mid
+        del v4
+        
         return result
 
 __all__ = ["UpperTensorFunctionsManager"]
-

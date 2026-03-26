@@ -7,7 +7,8 @@ import torch
 
 from hv_functions import UpperTensorFunctionsManager
 from hv_memory import get_random_hvs
-from utils import get_range_tensor, commutative_cantor_pairing, Timer
+from utils import get_range_tensor, commutative_cantor_pairing
+from time_ import Timer
 from tudataset import get_dataset_main, get_graph_dataset
 from constants import D, m
 from fs_organization import FsOrganizer
@@ -16,7 +17,12 @@ from gpu_management.data_type import DataType
 from fn_context import FnContext
 from mmap_tensors import MmapTensors
 
-def get_position_encodings(manager: TensorFunctionsManager, out: torch.Tensor | None = None) -> torch.Tensor:
+position_encodings_cache: torch.Tensor | None = None
+def get_position_encodings(manager: TensorFunctionsManager) -> torch.Tensor:
+    global position_encodings_cache
+    if position_encodings_cache is not None:
+        return position_encodings_cache
+    
     max_num_nodes = get_dataset_main().max_num_nodes
     
     const0 = torch.tensor(0.0, dtype=torch.float32)
@@ -31,9 +37,10 @@ def get_position_encodings(manager: TensorFunctionsManager, out: torch.Tensor | 
         
         out[...] = result.type(torch.complex64)
     
-    mid_result = manager.new_from_function((max_num_nodes, m, m), DataType.complex64, f1, out=out)
+    mid_result = manager.new_from_function((max_num_nodes, m, m), DataType.complex64, f1)
     position_encodings = mid_result[:, None, :, :].expand(max_num_nodes, D, m, m)
     
+    position_encodings_cache = position_encodings
     return position_encodings
 
 def create_and_save_hv( \
@@ -64,20 +71,23 @@ def create_and_save_hv( \
         if id in edge_dict: continue
         edge_dict[id] = (u, v)
     
-    edge_indices1: torch.Tensor = torch.empty((len(edge_dict),), dtype=torch.int32)
-    edge_indices2: torch.Tensor = torch.empty((len(edge_dict),), dtype=torch.int32)
+    edge_dict_len = len(edge_dict)
+    edge_indices1: torch.Tensor = torch.empty((edge_dict_len,), dtype=torch.int32)
+    edge_indices2: torch.Tensor = torch.empty((edge_dict_len,), dtype=torch.int32)
+    del edge_dict_len
     for i, (u, v) in enumerate(edge_dict.values()):
         if u > v: (u, v) = (v, u)
         edge_indices1[i] = u
         edge_indices2[i] = v
+    del edge_dict
     
-    edges1: torch.Tensor = torch.gather(key_encodings_1, 0, \
-        edge_indices1[..., None, None, None].expand(-1, D, m, m))
-    edges2: torch.Tensor = torch.gather(key_encodings_2, 0, \
-        edge_indices2[..., None, None, None].expand(-1, D, m, m))
-    # torch.cuda.empty_cache()
-    key_positions: torch.Tensor = torch.gather(position_encodings, 0, \
-        edge_indices2[..., None, None, None].expand(-1, D, m, m))
+    edge_indices1_expanded = edge_indices1[..., None, None, None].expand(-1, D, m, m)
+    edge_indices2_expanded = edge_indices2[..., None, None, None].expand(-1, D, m, m)
+    edges1: torch.Tensor = torch.gather(key_encodings_1, 0, edge_indices1_expanded)
+    edges2: torch.Tensor = torch.gather(key_encodings_2, 0, edge_indices2_expanded)
+    key_positions: torch.Tensor = torch.gather(position_encodings, 0, edge_indices2_expanded)
+    del edge_indices1_expanded
+    del edge_indices2_expanded
     
     key_hv = functions.key_from_encoded(edges1, edges2, key_positions)
     timer.end()
@@ -86,12 +96,11 @@ def create_and_save_hv( \
     del edges1
     del edges2
     del key_positions
-    # torch.cuda.empty_cache()
     
     timer = Timer("Calculate Attention HV")
     res = MmapTensors.new_override(out_path, (D, m, m), DataType.complex64)
-    timer.end()
     functions.attention_function(query_hv, key_hv, value_hv, out=res)
+    timer.end()
     del query_hv
     del key_hv
     del value_hv

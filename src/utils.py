@@ -7,9 +7,8 @@ from pathlib import Path
 from math import sqrt
 from functools import reduce
 from get_args import get_arg
-from time_start import time_start, date_start
-from datetime import datetime
 import shutil
+from time_ import calc_time_difference
 
 import torch
 
@@ -28,40 +27,6 @@ def value_or_else(v: T | None, default_fn: Callable[[], T]) -> T:
         return v
     
     return default_fn()
-
-def calc_time_difference(before: int, after: int):
-    time_difference = (after - before) // 10_000_000
-
-    if time_difference < 0:
-        time_difference *= -1
-    
-    time_difference_int = time_difference // 100
-    time_difference_dec = time_difference  % 100
-
-    return f"{time_difference_int}.{time_difference_dec:02} s"
-
-class Timer:
-    start: int
-    name: str
-    
-    def __init__(self, name: str) -> None:
-        self.name = name
-        self.start = time.time_ns()
-        
-        self.__print(self.start, f"{self.name} -> START")
-    
-    def __print(self, time: int, msg: str) -> None:
-        seconds = time // 1_000_000_000
-        date = datetime.fromtimestamp(seconds)
-        print(f"({date.hour:02}:{date.minute:02}, {calc_time_difference(time_start, time)} since program start at {date_start.hour:02}:{date_start.minute:02}) {msg}")
-    
-    def end(self) -> None:
-        end = time.time_ns()
-        self.__print(end, f"{self.name} -> END (took {calc_time_difference(self.start, end)})")
-    
-    def error(self) -> None:
-        end = time.time_ns()
-        self.__print(end, f"{self.name} -> ERROR (took {calc_time_difference(self.start, end)})")
 
 def torch_cantor_pairing(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     a = torch.where(a >= 0, a * 2, a * (-2) - 1)

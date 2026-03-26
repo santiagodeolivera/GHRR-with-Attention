@@ -9,7 +9,7 @@ from torch_geometric.utils import to_networkx as to_networkx_inner
 from typing import Iterable
 import networkx as nx
 
-from utils import Timer
+from time_ import Timer
 
 """
 Assumptions:

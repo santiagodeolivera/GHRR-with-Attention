@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, Iterable, Any
 import json
 import torch
 
@@ -20,6 +20,28 @@ def get_split_ids_by_label(root: FsOrganizer) -> dict[int, list[HVProxy]]:
     )
     
     return res
+    
+def f1(samples: dict[int, tuple[HVProxy, ...]], functions: UpperTensorFunctionsManager) -> Any:
+    hv1: torch.Tensor | None = None
+    hv2: torch.Tensor | None = None
+    raw_data: dict[str, dict[str, float]] = dict()
+    approximations: dict[str, str] = dict()
+    samples.values()
+    for label1 in samples.keys():
+        for label2 in samples.keys():
+            if label1 > label2: continue
+            mid_raw_data: dict[str, float] = dict()
+            for proxy1 in samples[label1]:
+                for proxy2 in samples[label2]:
+                    if proxy1.id > proxy2.id: continue
+                    hv1 = proxy1.get_hv()
+                    hv2 = proxy2.get_hv()
+                    similarity = functions.normalized_similarity(hv1, hv2)
+                    mid_raw_data[f"{proxy1.id},{proxy2.id}"] = similarity.item()
+            approximations[f"{label1},{label2}"] = approximation(tuple(mid_raw_data.values()))
+            raw_data[f"{label1},{label2}"] = mid_raw_data
+    
+    return {"approximations": approximations, "raw_data": raw_data}
 
 # Compare similarities of HVs in random samples of different classes
 def func(ctx: FnContext) -> None:
@@ -30,34 +52,10 @@ def func(ctx: FnContext) -> None:
     samples0: dict[int, list[HVProxy]] = get_split_ids_by_label(root)
     samples: dict[int, tuple[HVProxy, ...]] = {k: take_random_from_list(v, F2_SAMPLE_SIZE) for k, v in samples0.items()}
     
-    hv1: torch.Tensor | None = None
-    hv2: torch.Tensor | None = None
-    raw_data: dict[str, dict[str, float]] = dict()
-    approximations: dict[str, str] = dict()
-    for label1 in samples.keys():
-        for label2 in samples.keys():
-            if label1 > label2: continue
-            mid_raw_data: dict[str, float] = dict()
-            for proxy1 in samples[label1]:
-                for proxy2 in samples[label2]:
-                    if proxy1.id > proxy2.id: continue
-                    hv1 = proxy1.get_hv(out=hv1)
-                    hv2 = proxy2.get_hv(out=hv2)
-                    similarity = functions.normalized_similarity(hv1, hv2)
-                    print("DEBUG 0:", proxy1.id)
-                    print("DEBUG 1:", proxy2.id)
-                    print("DEBUG 2:", proxy1._HVProxy__path)
-                    print("DEBUG 3:", proxy2._HVProxy__path)
-                    print("DEBUG 4:", hv1)
-                    print("DEBUG 5:", hv2)
-                    print("DEBUG 6:", torch.linalg.norm(hv1))
-                    print("DEBUG 7:", torch.linalg.norm(hv2))
-                    mid_raw_data[f"{proxy1.id},{proxy2.id}"] = similarity.item()
-            approximations[f"{label1},{label2}"] = approximation(tuple(mid_raw_data.values()))
-            raw_data[f"{label1},{label2}"] = mid_raw_data
+    data = f1(samples, functions)
     
     with open(root.result_file, "w") as file:
-        json.dump({"approximations": approximations, "raw_data": raw_data}, file)
+        json.dump(data, file)
 
 __all__ = ["func"]
 
