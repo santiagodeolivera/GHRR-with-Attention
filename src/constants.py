@@ -1,5 +1,3 @@
-import os
-
 from get_args import get_arg
 
 D = get_arg("DIMENSIONS", "int")

@@ -1,6 +1,5 @@
 import json
-from typing import Iterable, Callable, Sequence, Any
-from pathlib import Path
+from typing import Iterable, Callable, Any
 
 from fs_organization import FsOrganizer
 from utils import approximation

@@ -1,5 +1,4 @@
 from tudataset import set_dataset_main
-import os
 
 from get_args import get_arg
 

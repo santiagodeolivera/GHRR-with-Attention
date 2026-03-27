@@ -1,12 +1,10 @@
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable
 from dataclasses import dataclass
 import shutil
-import json
 
 import torch
 
-from .memory import MemoryManager
 from .tensor_functions import TensorFunctionsManager
 from .data_type import DataType
 from mmap_tensors import MmapTensors

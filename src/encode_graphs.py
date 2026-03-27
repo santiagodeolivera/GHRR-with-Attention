@@ -1,47 +1,19 @@
 from pathlib import Path
 import itertools
-from typing import Callable
 
 import networkx as nx
 import torch
 
 from hv_functions import UpperTensorFunctionsManager
 from hv_memory import get_random_hvs
-from utils import get_range_tensor, commutative_cantor_pairing
+from utils import commutative_cantor_pairing
 from time_ import Timer
 from tudataset import get_dataset_main, get_graph_dataset
 from constants import D, m
-from fs_organization import FsOrganizer
-from gpu_management.tensor_functions import TensorFunctionsManager
 from gpu_management.data_type import DataType
 from fn_context import FnContext
 from mmap_tensors import MmapTensors
-
-position_encodings_cache: torch.Tensor | None = None
-def get_position_encodings(manager: TensorFunctionsManager) -> torch.Tensor:
-    global position_encodings_cache
-    if position_encodings_cache is not None:
-        return position_encodings_cache
-    
-    max_num_nodes = get_dataset_main().max_num_nodes
-    
-    const0 = torch.tensor(0.0, dtype=torch.float32)
-    const1 = torch.tensor(1.0, dtype=torch.float32)
-    
-    def f1(dims: tuple[torch.Tensor, ...], out: torch.Tensor) -> None:
-        n, row, col = dims
-        
-        result = torch.where(row == col, \
-            torch.clamp(n * (m / max_num_nodes) - row, const0, const1), \
-        const0)
-        
-        out[...] = result.type(torch.complex64)
-    
-    mid_result = manager.new_from_function((max_num_nodes, m, m), DataType.complex64, f1)
-    position_encodings = mid_result[:, None, :, :].expand(max_num_nodes, D, m, m)
-    
-    position_encodings_cache = position_encodings
-    return position_encodings
+from positional_encoding import get_position_encodings
 
 def create_and_save_hv( \
     g_id: int, \

@@ -1,8 +1,6 @@
-from typing import Callable, Any
-from fs_organization import FsOrganizer
+from typing import Callable
 import subprocess
 import json
-import os
 from pathlib import Path
 from utils import approximation as get_approximation
 import shutil
@@ -92,13 +90,12 @@ def find_closeness_approximation(ctx: FnContext) -> None:
         json.dump(approximation, file)
         
 # Compare with GraphHD
-def get_action(action_id: int) -> Callable[[FnContext], None]:
+def get_action(action_id: int) -> tuple[str, Callable[[FnContext], None]] | None:
     if action_id < 0:
         raise ValueError("Out of bounds")
     elif action_id == 0:
-        return execute_graphhd
+        return ("Calculate comparisons with GraphHD", execute_graphhd)
     elif action_id == 1:
-        return find_closeness_approximation
-    else:
-        raise ValueError("Out of bounds")
+        return ("Aggregate comparisons with GraphHD", find_closeness_approximation)
+    return None
 

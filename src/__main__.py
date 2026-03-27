@@ -3,11 +3,8 @@ import prev_setup
 
 setup_timer = Timer("Initial setup")
 
-import os
 import time
-from pathlib import Path
 from typing import Callable
-import pickle
 import re
 import json
 import abc
@@ -26,7 +23,7 @@ from fn_context import FnContext
 from gpu_management.tensor_functions import TensorFunctionsManager
 from gpu_management.tests import all_tests as gpu_tests
 from hv_functions import UpperTensorFunctionsManager
-from get_args import get_arg, get_op_arg
+from get_args import get_arg
 from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int
 from time_ import time_start
 from tudataset import get_dataset_main
@@ -86,48 +83,56 @@ def test_model(instance_name: str) -> Callable[[FnContext], None]:
     return inner
 
 encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
-def get_action(program_id: int, action_id: int) -> Callable[[FnContext], None] | None:
+def get_action(program_id: int, action_id: int) -> tuple[str, Callable[[FnContext], None]] | None:
+    if action_id < 0:
+        raise Exception(f"Invalid action_id: {action_id}")
+    
     if program_id == 1:
         num_graphs = get_dataset_main().num_graphs
         num_models = 10
-        if action_id < 0:
-            return None
-        elif action_id == 0:
-            return lambda ctx: ctx.fs.setup()
-        elif action_id < num_graphs + 1:
-            g_id = action_id - 1
-            return lambda root: action_create_hv(g_id, root)
-        elif action_id == num_graphs + 1:
-            return lambda ctx: define_ids_to_labels_mapping(ctx.fs.tudataset, ctx.fs.ids_to_labels)
-        elif action_id < num_graphs + 2 + num_models * 3:
-            counter = action_id - (num_graphs + 2)
+        
+        if action_id < 1:
+            return ("Setup", lambda ctx: ctx.fs.setup())
+        action_id -= 1
+        
+        if action_id < num_graphs:
+            g_id = action_id
+            return (f"Create HV {g_id+1} of {num_graphs}", lambda root: action_create_hv(g_id, root))
+        action_id -= num_graphs
+        
+        if action_id < 1:
+            return ("Define ids to labels mapping", lambda ctx: define_ids_to_labels_mapping(ctx.fs.tudataset, ctx.fs.ids_to_labels))
+        action_id -= 1
+        
+        if action_id < num_models * 3:
+            counter = action_id
             instance_id = counter // 3
             instance_step = counter % 3
             
             instance_dir = f"instances/{instance_id}"
             
+            v1 = f"Model {instance_id+1} of {num_models}"
             if instance_step == 0:
-                return distribute_rows(instance_dir)
+                return (f"{v1} -> distribute rows", distribute_rows(instance_dir))
             elif instance_step == 1:
-                return train_model(instance_dir)
+                return (f"{v1} -> train model", train_model(instance_dir))
             elif instance_step == 2:
-                return test_model(instance_dir)
-        elif action_id == num_graphs + 2 + num_models * 3:
-            return process_results((f"instances/{x}/result_file.json" for x in range(10)), "results.json")
-        else:
-            return None
+                return (f"{v1} -> test model", test_model(instance_dir))
+        action_id -= num_models * 3
+        
+        if action_id < 1:
+            return ("Aggregate model prediction results",
+                process_results((f"instances/{x}/result_file.json" for x in range(10)), "results.json"))
+        action_id -= 1
+        
+        return None
     elif program_id == 2:
-        if action_id < 0:
-            return None
-        elif action_id == 0:
-            return f2_function
-        else:
-            return None
+        if action_id < 1:
+            return ("Compare several random HVs of all classes", f2_function)
+        action_id -= 1
+        return None
     elif program_id == 3:
-        if action_id < 0:
-            return None
-        else:
-            return get_f3_action(action_id)
+        return get_f3_action(action_id)
     else:
         raise ValueError("Unknown program id")
     
@@ -201,12 +206,13 @@ def default_program(mode: str) -> None:
                 if action_id is None:
                     break
                 
-                action = get_action(program_id, action_id)
-                if action is None:
-                    raise Exception("Unknown action id")
+                action_data = get_action(program_id, action_id)
+                if action_data is None:
+                    break
+                action_name, action = action_data
                 
                 ctx = FnContext(fs = FsOrganizer(root_dir), functions = upper_manager)
-                timer = Timer(f"Program {program_id}, action {action_id}")
+                timer = Timer(f"Program {program_id}, action {action_id}: {action_name}")
                 
                 try:
                     action(ctx)

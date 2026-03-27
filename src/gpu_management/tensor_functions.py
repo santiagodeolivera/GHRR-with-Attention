@@ -1,13 +1,10 @@
-from pathlib import Path
 from typing import Callable, Any
-from builtins import slice
 
 import torch
 
 from .memory import MemoryManager
 from .data_type import DataType
 from utils import get_size, get_range_tensor, ContiguousTensor as CT
-from mmap_tensors import MmapTensors
 
 def res_tensor_0(shape: tuple[int, ...], out: torch.Tensor | None, data_type: torch.dtype | DataType) -> torch.Tensor:
     dtype = data_type.value if isinstance(data_type, DataType) else data_type

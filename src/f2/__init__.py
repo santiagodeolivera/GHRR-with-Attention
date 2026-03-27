@@ -1,5 +1,4 @@
-from pathlib import Path
-from typing import Sequence, Iterable, Any
+from typing import Any
 import json
 import torch
 
@@ -33,7 +32,7 @@ def f1(samples: dict[int, tuple[HVProxy, ...]], functions: UpperTensorFunctionsM
             mid_raw_data: dict[str, float] = dict()
             for proxy1 in samples[label1]:
                 for proxy2 in samples[label2]:
-                    if proxy1.id > proxy2.id: continue
+                    if proxy1.id >= proxy2.id: continue
                     hv1 = proxy1.get_hv()
                     hv2 = proxy2.get_hv()
                     similarity = functions.normalized_similarity(hv1, hv2)

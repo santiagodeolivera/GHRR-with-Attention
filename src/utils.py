@@ -1,14 +1,11 @@
-import time
-import os
 import json
 from random import shuffle as random_shuffle
-from typing import TypeVar, TypeGuard, Callable, Any, Protocol, Sequence, Type
+from typing import TypeVar, Callable, Any, Sequence
 from pathlib import Path
 from math import sqrt
 from functools import reduce
 from get_args import get_arg
-import shutil
-from time_ import calc_time_difference
+from tudataset import get_dataset_main
 
 import torch
 
@@ -99,13 +96,14 @@ def get_train_and_test_sets_proportion() -> float:
     return get_arg("PROPORTION", "float")
 
 def define_train_and_test_datasets(path: Path) -> None:
-    ids: list[int] = list(range(188))
+    max_num_nodes = get_dataset_main().max_num_nodes
+    ids: list[int] = list(range(max_num_nodes))
     proportion = get_train_and_test_sets_proportion()
     
     train_ids, test_ids = proportional_split(ids, proportion)
-    json_data = json.dumps({"train": train_ids, "test": test_ids})
     
-    path.write_text(json_data)
+    with open(path, "w") as file:
+        json.dump({"train": train_ids, "test": test_ids}, file)
 
 def get_train_and_test_datasets(path: Path) -> tuple[tuple[int, ...], tuple[int, ...]]:
     json_data = path.read_text()
