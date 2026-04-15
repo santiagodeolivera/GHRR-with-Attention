@@ -29,10 +29,15 @@ class ConfusionMatrix:
             / sum(v for (k, v) in self.__results.items() if k[0] == self.__positive_label)
     
     @property
-    def f1(self) -> float:
+    def f1(self) -> float | None:
         precision = self.precision
         recall = self.recall
-        return 2 * precision * recall / (precision + recall)
+        
+        v1 = precision + recall
+        if v1 != 0:
+            return 2 * precision * recall / (precision + recall)
+        else:
+            return None
 
 def check_result_data(v: Any) -> tuple[list[int], list[int], list[int]]:
     if type(v) != dict: raise ValueError()
@@ -85,7 +90,8 @@ def process_results(instances: Iterable[str], out_file: str) -> Callable[[FnCont
         
         raw_result = dict()
         for name, fn in metrics:
-            values = tuple(fn(m) for m in conf_matrices)
+            values0 = (fn(m) for m in conf_matrices)
+            values = tuple(x for x in values0 if x is not None)
             approx_result = approximation(values)
             raw_result[name] = approx_result
         json_result = json.dumps(raw_result)

@@ -8,6 +8,7 @@ from hv_proxy import HVProxy
 from hv_functions import UpperTensorFunctionsManager
 from gpu_management.data_type import DataType
 from mmap_tensors import MmapTensors
+from utils import get_size
 
 def get_class_hv_from_file(path: Path) -> tuple[int, torch.Tensor]:
     id = int(path.stem)
@@ -59,7 +60,7 @@ class Model:
 
     # test_batch: (x)D batch of HVs
     # returns: (x)D batch of integers
-    def test(self, functions: UpperTensorFunctionsManager, test_batch: torch.Tensor) -> torch.Tensor:
+    def test(self, functions: UpperTensorFunctionsManager, test_batch: torch.Tensor, max_tensors: int = 10) -> torch.Tensor:
         res_shape = test_batch.shape[:-3]
         
         if not res_shape:
@@ -78,10 +79,27 @@ class Model:
             
             return torch.tensor(closest_label)
         elif any(x == 0 for x in res_shape):
-            return torch.zeros(res_shape)
+            return torch.zeros(res_shape, dtype=torch.complex64)
+        elif get_size(res_shape) > max_tensors:
+            hv_shape = test_batch.shape[-3:]
+            test_batch_view = test_batch.view(-1, *hv_shape)
+            test_batch_length = test_batch_view.shape[0]
+            
+            result = torch.zeros(res_shape, dtype=torch.int8)
+            result_view = result.view(-1)
+            
+            start = 0
+            while start < test_batch_length:
+                end = min(start + max_tensors, test_batch_length)
+                current_batch = test_batch_view[start:end, ...]
+                result_view[start:end] = self.test(functions, current_batch, max_tensors=max_tensors)
+                start = end
+            
+            return result
         else:
-            max_similarities: torch.Tensor = torch.zeros(*res_shape)
-            closest_labels: torch.Tensor = torch.zeros(*res_shape, dtype=torch.int8)
+            print("Test dataset batch shape:", tuple(res_shape))
+            max_similarities: torch.Tensor = torch.zeros((0,))
+            closest_labels: torch.Tensor = torch.zeros((0,), dtype=torch.int8)
             defined_vars: bool = False
             
             for label, class_hv in self.__classes.items():
@@ -92,11 +110,15 @@ class Model:
                     max_similarities = similarities
                     closest_labels = torch.full(res_shape, label, dtype=torch.int8)
                     defined_vars = True
-                    continue
+                else:
+                    modify_result = similarities > max_similarities
+                    max_similarities[modify_result] = similarities[modify_result]
+                    closest_labels[modify_result] = label
+                    
+                    del modify_result
                 
-                modify_result = similarities > max_similarities
-                max_similarities = torch.where(modify_result, similarities, max_similarities)
-                closest_labels = torch.where(modify_result, label, closest_labels)
+                del class_hv_2
+                del similarities
             
             if not defined_vars:
                 raise Exception()

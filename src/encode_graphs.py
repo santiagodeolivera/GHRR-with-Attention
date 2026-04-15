@@ -8,7 +8,7 @@ from hv_functions import UpperTensorFunctionsManager
 from hv_memory import get_random_hvs
 from utils import commutative_cantor_pairing
 from time_ import Timer
-from tudataset import get_dataset_main, get_graph_dataset
+from tudataset import get_dataset_info, get_graph_dataset
 from constants import D, m
 from gpu_management.data_type import DataType
 from fn_context import FnContext
@@ -80,7 +80,7 @@ def create_and_save_hv( \
 def action_create_hv(g_id: int, ctx: FnContext) -> None:
     root = ctx.fs
     functions = ctx.functions
-    max_num_nodes = get_dataset_main().max_num_nodes
+    max_num_nodes = get_dataset_info().max_num_nodes
     
     query_encodings = get_random_hvs(functions.lower, root.query_encodings, max_num_nodes)
     key_encodings_1 = get_random_hvs(functions.lower, root.key_encodings_1, max_num_nodes)
@@ -105,4 +105,3 @@ def action_create_hv(g_id: int, ctx: FnContext) -> None:
     )
 
 __all__ = ["action_create_hv"]
-

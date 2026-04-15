@@ -22,24 +22,35 @@ def res_tensor(shape: tuple[int, ...], out: torch.Tensor | None, data_type: torc
     return CT(tensor)
 
 class TensorFunctionsManager:
-    __managers: dict[str, MemoryManager]
+    __managers_cache: dict[str, MemoryManager] | int
     
     def __init__(self, max_bytes: int):
         max_mem = max_bytes // DataType.complex64.size
         
-        complex_manager, float_manager = MemoryManager.create_two(max_mem)
+        self.__managers_cache = max_mem
         
-        self.__managers = {
-            "complex64": complex_manager,
-            "float32": float_manager
-        }
+    @property
+    def __managers(self) -> dict[str, MemoryManager]:
+        if isinstance(self.__managers_cache, int):
+            max_mem = self.__managers_cache
+            complex_manager, float_manager = MemoryManager.create_two(max_mem)
+            
+            result = {
+                "complex64": complex_manager,
+                "float32": float_manager
+            }
+            self.__managers_cache = result
+            return result
+        
+        return self.__managers_cache
     
     def __enter__(self) -> "TensorFunctionsManager":
         return self
     
     def __exit__(self, exc_t, exc_v, exc_tb) -> None:
-        for manager in self.__managers.values():
-            manager.__exit__(exc_t, exc_v, exc_tb)
+        if isinstance(self.__managers_cache, dict):
+            for manager in self.__managers_cache.values():
+                manager.__exit__(exc_t, exc_v, exc_tb)
     
     def randn(self, shape: tuple[int, ...], data_type: DataType, *, out: torch.Tensor | None = None) -> torch.Tensor:
         manager = self.__managers[data_type.name]

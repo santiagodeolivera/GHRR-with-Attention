@@ -5,7 +5,7 @@ from pathlib import Path
 from math import sqrt
 from functools import reduce
 from get_args import get_arg
-from tudataset import get_dataset_main
+from tudataset import get_dataset_info
 
 import torch
 
@@ -96,8 +96,8 @@ def get_train_and_test_sets_proportion() -> float:
     return get_arg("PROPORTION", "float")
 
 def define_train_and_test_datasets(path: Path) -> None:
-    max_num_nodes = get_dataset_main().max_num_nodes
-    ids: list[int] = list(range(max_num_nodes))
+    num_graphs = get_dataset_info().num_graphs
+    ids: list[int] = list(range(num_graphs))
     proportion = get_train_and_test_sets_proportion()
     
     train_ids, test_ids = proportional_split(ids, proportion)
@@ -140,9 +140,14 @@ def take_random_from_list(input: list[T], number: int) -> tuple[T, ...]:
 
 def approximation(numbers: Sequence[float]) -> str:
     n = len(numbers)
+    if n <= 0:
+        return "<empty list>"
+    
     avg = sum(numbers) / n
     std = sqrt(sum((x - avg)**2 for x in numbers) / n)
-    return f"{avg*100:.02f}% \u00B1 {std*100:.02f}%"
+    
+    v1 = "element" if n == 1 else "elements"
+    return f"{avg*100:.02f}% \u00B1 {std*100:.02f}% from {n} {v1}"
 
 def get_size(shape: tuple[int, ...]) -> int:
     return reduce(lambda a, b: a * b, shape, 1)

@@ -5,11 +5,11 @@ import torch
 from gpu_management.tensor_functions import TensorFunctionsManager
 from gpu_management.data_type import DataType
 from get_args import get_arg
-from tudataset import get_dataset_main
+from tudataset import get_dataset_info
 from constants import D, m
 import abc
 
-max_num_nodes = get_dataset_main().max_num_nodes
+max_num_nodes = get_dataset_info().max_num_nodes
 
 class PosEncMode(abc.ABC):
     def check_available(self) -> None:
@@ -35,7 +35,7 @@ class PosEncMode1(PosEncMode):
         
         n, row, col = dims
         
-        result = torch.where(n == row & row == col, const1, const0)
+        result = torch.where((n == row) & (row == col), const1, const0)
         
         out[...] = result.type(torch.complex64)
 

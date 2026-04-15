@@ -1,5 +1,6 @@
-from time_ import Timer
 import prev_setup
+
+from time_ import Timer
 
 setup_timer = Timer("Initial setup")
 
@@ -26,7 +27,7 @@ from hv_functions import UpperTensorFunctionsManager
 from get_args import get_arg
 from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int
 from time_ import time_start
-from tudataset import get_dataset_main
+from tudataset import get_dataset_info
 
 def distribute_rows(instance_name: str) -> Callable[[FnContext], None]:
     def inner(ctx: FnContext) -> None:
@@ -67,18 +68,28 @@ def test_model(instance_name: str) -> Callable[[FnContext], None]:
         root.config.dist_file = f"{instance_name}/dist_file.json"
         root.config.result_file = f"{instance_name}/result_file.json"
         
+        timer = Timer("Get model from FS")
         trained_model = Model.from_fs(root.model)
+        timer.end()
         
+        timer = Timer("Get proxies and expected labels")
         _, test_ids = tuple(get_train_and_test_datasets(root.train_and_test_sets_distribution))
         test_proxies = tuple(proxies_from_fs(root, test_ids))
         test_expected_labels = tuple(proxy.label for proxy in test_proxies)
+        timer.end()
         
+        timer = Timer("Create HV batch")
         test_data: torch.Tensor = proxies_to_batch(test_proxies)
+        timer.end()
+        
+        timer = Timer("Predict test dataset graphs")
         test_result_labels_tensor: torch.Tensor = trained_model.test(functions, test_data)
+        timer.end()
+        
         test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_tensor)
     
-        json_data = json.dumps({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels})
-        root.result_file.write_text(json_data)
+        with open(root.result_file, "w") as file:
+            json.dump({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels}, file)
     
     return inner
 
@@ -88,7 +99,7 @@ def get_action(program_id: int, action_id: int) -> tuple[str, Callable[[FnContex
         raise Exception(f"Invalid action_id: {action_id}")
     
     if program_id == 1:
-        num_graphs = get_dataset_main().num_graphs
+        num_graphs = get_dataset_info().num_graphs
         num_models = 10
         
         if action_id < 1:
@@ -190,16 +201,17 @@ def default_program(mode: str) -> None:
     max_gpu_mem = get_arg("MAX_GPU_MEM", "int")
     
     start = get_arg("START", "int")
+    end: int | None = None
+    
     limiter_fn = limiters.get(mode, None)
     if limiter_fn is None:
         raise Exception(f"Unknown limiter mode: {mode}")
     limiter = limiter_fn(start)
     
-    with TensorFunctionsManager(1024 * 1024 * 1024 * 4) as lower_manager:
+    with TensorFunctionsManager(max_gpu_mem) as lower_manager:
         upper_manager = UpperTensorFunctionsManager(lower_manager)
         vars_timer.end()
         
-        end: int | None = None
         try:
             while True:
                 action_id = limiter.next()
@@ -231,10 +243,14 @@ def default_program(mode: str) -> None:
 
 def main() -> None:
     mode = get_arg("MODE", "str")
-    
     match mode:
         case "RANGE" | "TIMED":
             default_program(mode)
+        case "INFO":
+            info = get_dataset_info()
+            print("Source dataset:", info.name)
+            print("Number of graphs:", info.num_graphs)
+            print("Max number of nodes in a graph:", info.max_num_nodes)
         case "TEST":
             gpu_tests()
         case _:

@@ -8,6 +8,7 @@ from utils import take_random_from_list, approximation
 from hv_functions import UpperTensorFunctionsManager
 from constants import F2_SAMPLE_SIZE
 from fn_context import FnContext
+from time_ import Timer
 
 def get_split_ids_by_label(root: FsOrganizer) -> dict[int, list[HVProxy]]:
     proxies = tuple(proxies_from_fs(root, range(188)))
@@ -29,14 +30,18 @@ def f1(samples: dict[int, tuple[HVProxy, ...]], functions: UpperTensorFunctionsM
     for label1 in samples.keys():
         for label2 in samples.keys():
             if label1 > label2: continue
+            timer = Timer(f"Calculate approximate similarity between HVs of classes {label1} and {label2}")
+            
             mid_raw_data: dict[str, float] = dict()
             for proxy1 in samples[label1]:
                 for proxy2 in samples[label2]:
-                    if proxy1.id >= proxy2.id: continue
+                    if label1 == label2 and proxy1.id >= proxy2.id: continue
                     hv1 = proxy1.get_hv()
                     hv2 = proxy2.get_hv()
                     similarity = functions.normalized_similarity(hv1, hv2)
                     mid_raw_data[f"{proxy1.id},{proxy2.id}"] = similarity.item()
+            
+            timer.end()
             approximations[f"{label1},{label2}"] = approximation(tuple(mid_raw_data.values()))
             raw_data[f"{label1},{label2}"] = mid_raw_data
     

@@ -91,3 +91,4 @@ class FsOrganizer:
 	@property
 	def result_file(self):
 		return self.__root / self.config.result_file
+
