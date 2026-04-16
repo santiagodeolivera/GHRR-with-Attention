@@ -1,3 +1,4 @@
+import functools
 import networkx as nx
 from typing import Iterable
 from enum import Flag
@@ -9,6 +10,16 @@ class PruningMode(Flag):
     
     def includes(self, other: Flag) -> bool:
         return (self & other) == other
+    
+    @staticmethod
+    def from_iter(it: "Iterable[PruningMode]") -> "PruningMode | None":
+        return functools.reduce(f2, it, None)
+
+def f2(v1: PruningMode | None, v2: PruningMode) -> PruningMode:
+    if v1 is None:
+        return v2
+    
+    return v1 | v2
 
 def f1(a: int, b: int, c: int) -> int | None:
     if a == b: return c

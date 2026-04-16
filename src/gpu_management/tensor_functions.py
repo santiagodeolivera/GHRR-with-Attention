@@ -188,8 +188,8 @@ class TensorFunctionsManager:
         
         c1 = v1.contiguous()
         with res_tensor(batch_shape, out, data_type) as result:
-            t1 = c1.view(-1, unit_size)
-            t2 = result.view(-1)
+            t1 = c1.view(batch_size, unit_size)
+            t2 = result.view(batch_size)
             
             t2[...] = torch.sum(t1, dim=1)
             

@@ -15,23 +15,30 @@ class ConfusionMatrix:
     
     @property
     def accuracy(self) -> float:
+        if all(k[1] != self.__positive_label for k in self.__results.keys()): return None
+        
         return sum(v for (k, v) in self.__results.items() if k[0] == k[1]) \
             / sum(self.__results.values())
     
     @property
-    def precision(self) -> float:
+    def precision(self) -> float | None:
+        if all(k[1] != self.__positive_label for k in self.__results.keys()): return None
+        
         return sum(v for (k, v) in self.__results.items() if k[0] == k[1] and k[0] == self.__positive_label) \
             / sum(v for (k, v) in self.__results.items() if k[1] == self.__positive_label)
     
     @property
-    def recall(self) -> float:
+    def recall(self) -> float | None:
         return sum(v for (k, v) in self.__results.items() if k[0] == k[1] and k[0] == self.__positive_label) \
             / sum(v for (k, v) in self.__results.items() if k[0] == self.__positive_label)
     
     @property
     def f1(self) -> float | None:
         precision = self.precision
+        if precision is None: return None
+        
         recall = self.recall
+        if recall is None: return None
         
         v1 = precision + recall
         if v1 != 0:

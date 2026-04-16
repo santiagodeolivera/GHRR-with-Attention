@@ -34,33 +34,57 @@ class DatasetTemplate:
     dataset_name: str
     pruning_flags: PruningMode | None
     max_num_nodes: int | None
+    max_num_edges: int | None
 
-dataset_templates: dict[str, DatasetTemplate] = dict()
-for name in ("MUTAG", "ENZYMES", "PTC_FM"):
-    dataset_templates[name] = DatasetTemplate(name, None, None)
-    dataset_templates[f"{name}_pruned"] = DatasetTemplate(name, PruningMode.PRUNE_PATHS, None)
-    dataset_templates[f"{name}_d1"] = DatasetTemplate(name, PruningMode.REMOVE_DEGREE_1, None)
-    dataset_templates[f"{name}_d1_pruned"] = DatasetTemplate(name, PruningMode.REMOVE_DEGREE_1 | PruningMode.PRUNE_PATHS, None)
-    
-    for max_nodes in (28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92, 96, 100):
-        dataset_templates[f"{name}_nodes_{max_nodes}"] = \
-            DatasetTemplate(name, None, max_nodes)
+def get_dataset_template(name: str) -> DatasetTemplate | None:
+    try:
+        sections = name.split(".")
         
-        dataset_templates[f"{name}_pruned_nodes_{max_nodes}"] = \
-            DatasetTemplate(name, PruningMode.PRUNE_PATHS, max_nodes)
+        dataset_name = sections[0]
+        if dataset_name not in ("MUTAG", "ENZYMES", "PTC_FM"):
+            return None
         
-        dataset_templates[f"{name}_d1_nodes_{max_nodes}"] = \
-            DatasetTemplate(name, PruningMode.REMOVE_DEGREE_1, max_nodes)
+        pruning_flags: list[PruningMode] = []
+        max_num_nodes: int | None = None
+        max_num_edges: int | None = None
         
-        dataset_templates[f"{name}_d1_pruned_nodes_{max_nodes}"] = \
-            DatasetTemplate(name, PruningMode.REMOVE_DEGREE_1 | PruningMode.PRUNE_PATHS, max_nodes)
+        for s in sections[1:]:
+            if s == "d1":
+                pruning_flags.append(PruningMode.REMOVE_DEGREE_1)
+            elif s == "pruned":
+                pruning_flags.append(PruningMode.PRUNE_PATHS)
+            elif s.startswith("nodes"):
+                max_num_nodes = int(s[5:])
+            elif s.startswith("edges"):
+                max_num_edges = int(s[5:])
+        
+        return DatasetTemplate(
+            dataset_name = dataset_name,
+            pruning_flags = PruningMode.from_iter(pruning_flags),
+            max_num_nodes = max_num_nodes,
+            max_num_edges = max_num_edges
+        )
+    except Exception:
+        return None
 
 @dataclass
 class DatasetInfo:
     name: str
     num_graphs: int
     max_num_nodes: int
+    max_num_edges: int
+    label_num: dict[int, int]
+
+def get_label_num(labels: Iterable[int]) -> dict[int, int]:
+    result: dict[int, int] = dict()
+    for label in labels:
+        if label not in result:
+            result[label] = 0
+        
+        result[label] += 1
     
+    return result
+
 dataset_main_info: DatasetInfo | None = None
 dataset_cache: tuple[tuple[int, nx.Graph], ...] | None = None
 
@@ -71,7 +95,7 @@ def set_dataset(name: str, root_dir: Path):
     if dataset_main_info is not None:
         raise Exception()
     
-    template = dataset_templates.get(name, None)
+    template = get_dataset_template(name)
     if template is None:
         raise ValueError(f"Unknown dataset name: {repr(name)}")
     
@@ -90,11 +114,17 @@ def set_dataset(name: str, root_dir: Path):
     if max_num_nodes is not None:
         graphs = ((y, G) for y, G in graphs if G.number_of_nodes() <= max_num_nodes)
     
+    max_num_edges = template.max_num_edges
+    if max_num_edges is not None:
+        graphs = ((y, G) for y, G in graphs if G.number_of_edges() <= max_num_edges)
+    
     dataset_cache = tuple(graphs)
     dataset_main_info = DatasetInfo(
         name = name,
         num_graphs = len(dataset_cache),
-        max_num_nodes = max(G.number_of_nodes() for y, G in dataset_cache)
+        max_num_nodes = max(G.number_of_nodes() for y, G in dataset_cache),
+        max_num_edges = max(G.number_of_edges() for y, G in dataset_cache),
+        label_num = get_label_num(y for y, G in dataset_cache)
     )
 
 def get_dataset() -> tuple[tuple[int, nx.Graph], ...]:

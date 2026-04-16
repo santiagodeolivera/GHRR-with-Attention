@@ -251,6 +251,9 @@ def main() -> None:
             print("Source dataset:", info.name)
             print("Number of graphs:", info.num_graphs)
             print("Max number of nodes in a graph:", info.max_num_nodes)
+            print("Max number of edges in a graph:", info.max_num_edges)
+            for label, num in info.label_num.items():
+                print(f"{num} graphs of label {repr(label)}")
         case "TEST":
             gpu_tests()
         case _:
