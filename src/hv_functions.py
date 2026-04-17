@@ -1,6 +1,8 @@
 import torch
+from math import sqrt
 
 from gpu_management.tensor_functions import TensorFunctionsManager
+from constants import D
 
 # HVs are represented as torch.Tensor instances of complex numbers, in which the last three dimensions must be depth, row, and column, from first to last
 
@@ -76,8 +78,14 @@ class UpperTensorFunctionsManager:
     
     def softmax_hv(self, hv: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
         tensor = hv.transpose(-3, -1)
-        result = self.lower.softmax(tensor, out=out)
-        return result.transpose(-3, -1)
+        mid_res = self.lower.softmax(tensor)
+        result = mid_res.transpose(-3, -1)
+        
+        if out is not None:
+            out[...] = result
+            return out
+        
+        return result
     
     # query_hv: HV
     # key_hv: HV
@@ -97,8 +105,11 @@ class UpperTensorFunctionsManager:
         v4 = self.softmax_hv(v3).type(torch.complex64)
         del v3
         
-        v5 = self.lower.matrix_mult(v4, value_hv)
+        v4_5 = self.lower.divide_by_scalar(v4, sqrt(D))
         del v4
+        
+        v5 = self.lower.matrix_mult(v4_5, value_hv)
+        del v4_5
         del value_hv
         
         v6 = self.lower.normalize(v5, out=out)
