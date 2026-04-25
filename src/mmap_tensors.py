@@ -19,15 +19,18 @@ class MmapTensors:
     
     @staticmethod
     def read_unsafe(path: Path) -> torch.Tensor:
-        data_path, json_path = MmapTensors.get_paths(path)
-        
-        with open(json_path, "r") as file:
-            metadata = json.load(file)
-        shape = tuple(check_int(n) for n in metadata["shape"])
-        size = get_size(shape)
-        data_type = DataType.get_by_name(metadata["type"]).value
-        
-        return torch.from_file(str(data_path), size=size, shared=True, dtype=data_type).view(shape)
+        try:
+            data_path, json_path = MmapTensors.get_paths(path)
+            
+            with open(json_path, "r") as file:
+                metadata = json.load(file)
+            shape = tuple(check_int(n) for n in metadata["shape"])
+            size = get_size(shape)
+            data_type = DataType.get_by_name(metadata["type"]).value
+            
+            return torch.from_file(str(data_path), size=size, shared=True, dtype=data_type).view(shape)
+        except Exception as e:
+            raise Exception(f"Could not load Mmap tensor in {path}") from e
     
     @staticmethod
     def read_if_exists(path: Path) -> torch.Tensor | None:

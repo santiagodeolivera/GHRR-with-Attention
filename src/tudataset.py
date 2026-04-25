@@ -36,36 +36,33 @@ class DatasetTemplate:
     max_num_nodes: int | None
     max_num_edges: int | None
 
-def get_dataset_template(name: str) -> DatasetTemplate | None:
-    try:
-        sections = name.split(".")
-        
-        dataset_name = sections[0]
-        if dataset_name not in ("MUTAG", "ENZYMES", "PTC_FM"):
-            return None
-        
-        pruning_flags: list[PruningMode] = []
-        max_num_nodes: int | None = None
-        max_num_edges: int | None = None
-        
-        for s in sections[1:]:
-            if s == "d1":
-                pruning_flags.append(PruningMode.REMOVE_DEGREE_1)
-            elif s == "pruned":
-                pruning_flags.append(PruningMode.PRUNE_PATHS)
-            elif s.startswith("nodes"):
-                max_num_nodes = int(s[5:])
-            elif s.startswith("edges"):
-                max_num_edges = int(s[5:])
-        
-        return DatasetTemplate(
-            dataset_name = dataset_name,
-            pruning_flags = PruningMode.from_iter(pruning_flags),
-            max_num_nodes = max_num_nodes,
-            max_num_edges = max_num_edges
-        )
-    except Exception:
-        return None
+def get_dataset_template(name: str) -> DatasetTemplate:
+    sections = name.split(".")
+    
+    dataset_name = sections[0]
+    if dataset_name not in ("MUTAG", "ENZYMES", "PTC_FM", "AIDS", "Letter-low", "Letter-med", "Letter-high"):
+        raise Exception(f"Invalid TUDataset dataset name: {dataset_name}")
+    
+    pruning_flags: list[PruningMode] = []
+    max_num_nodes: int | None = None
+    max_num_edges: int | None = None
+    
+    for s in sections[1:]:
+        if s == "d1":
+            pruning_flags.append(PruningMode.REMOVE_DEGREE_1)
+        elif s == "pruned":
+            pruning_flags.append(PruningMode.PRUNE_PATHS)
+        elif s.startswith("nodes"):
+            max_num_nodes = int(s[5:])
+        elif s.startswith("edges"):
+            max_num_edges = int(s[5:])
+    
+    return DatasetTemplate(
+        dataset_name = dataset_name,
+        pruning_flags = PruningMode.from_iter(pruning_flags),
+        max_num_nodes = max_num_nodes,
+        max_num_edges = max_num_edges
+    )
 
 @dataclass
 class DatasetInfo:
@@ -95,9 +92,10 @@ def set_dataset(name: str, root_dir: Path):
     if dataset_main_info is not None:
         raise Exception()
     
-    template = get_dataset_template(name)
-    if template is None:
-        raise ValueError(f"Unknown dataset name: {repr(name)}")
+    try:
+        template = get_dataset_template(name)
+    except Exception as e:
+        raise Exception(f"Failed to load dataset {repr(name)}") from e
     
     name = template.dataset_name
     timer = Timer(f"Load TUDataset dataset {repr(name)}")

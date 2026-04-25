@@ -97,7 +97,6 @@ class Model:
             
             return result
         else:
-            print("Test dataset batch shape:", tuple(res_shape))
             max_similarities: torch.Tensor = torch.zeros((0,))
             closest_labels: torch.Tensor = torch.zeros((0,), dtype=torch.int8)
             defined_vars: bool = False

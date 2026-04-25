@@ -78,16 +78,33 @@ def test_model(instance_name: str) -> Callable[[FnContext], None]:
         test_expected_labels = tuple(proxy.label for proxy in test_proxies)
         timer.end()
         
-        timer = Timer("Create HV batch")
-        test_data: torch.Tensor = proxies_to_batch(test_proxies)
-        timer.end()
+        test_result_labels_mid = torch.empty(len(test_proxies), dtype=torch.int8)
+        mid_start = 0
+        step = 100
+        total_end = len(test_proxies)
+        while mid_start < total_end:
+            mid_end = min(mid_start + step, total_end)
+            mid_test_proxies = test_proxies[mid_start:mid_end]
+            timer0 = Timer(f"Handle test HVs: [{mid_start}; {mid_end}) of [0; {total_end})")
+            
+            timer = Timer("Create HV batch")
+            mid_test_data: torch.Tensor = proxies_to_batch(mid_test_proxies)
+            del mid_test_proxies
+            timer.end()
+            
+            timer = Timer("Predict test dataset graphs")
+            mid_test_result_labels_tensor: torch.Tensor = trained_model.test(functions, mid_test_data)
+            del mid_test_data
+            timer.end()
+            
+            test_result_labels_mid[mid_start:mid_end] = mid_test_result_labels_tensor
+            del mid_test_result_labels_tensor
+            
+            timer0.end()
+            mid_start = mid_end
         
-        timer = Timer("Predict test dataset graphs")
-        test_result_labels_tensor: torch.Tensor = trained_model.test(functions, test_data)
-        timer.end()
+        test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_mid)
         
-        test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_tensor)
-    
         with open(root.result_file, "w") as file:
             json.dump({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels}, file)
     
@@ -150,10 +167,10 @@ def get_action(program_id: int, action_id: int) -> tuple[str, Callable[[FnContex
     return None
 
 class ActionLimiter(abc.ABC):
-    __current: int
+    _current: int
     
     def __init__(self, start: int) -> None:
-        self.__current = start
+        self._current = start
     
     @abc.abstractmethod
     def to_next(self) -> bool: ...
@@ -162,8 +179,8 @@ class ActionLimiter(abc.ABC):
         if not self.to_next():
             return None
         
-        result = self.__current
-        self.__current += 1
+        result = self._current
+        self._current += 1
         return result
 
 class RangeLimiter(ActionLimiter):
@@ -174,7 +191,7 @@ class RangeLimiter(ActionLimiter):
         self.__end = get_arg("END", "int")
     
     def to_next(self) -> bool:
-        return self.__current <= self.__end
+        return self._current <= self.__end
 
 class TimeLimiter(ActionLimiter):
     __stop_timestamp: int
