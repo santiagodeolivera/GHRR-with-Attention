@@ -43,7 +43,7 @@ class Model:
             
             class_hv: torch.Tensor
             if label not in unnormalized_class_hvs:
-                class_hv = torch.empty(D, m, m, dtype=torch.complex64)
+                class_hv = torch.zeros(D, m, m, dtype=torch.complex64)
                 unnormalized_class_hvs[label] = class_hv
             else:
                 class_hv = unnormalized_class_hvs[label]

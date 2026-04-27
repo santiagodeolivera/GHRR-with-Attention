@@ -20,29 +20,17 @@ from model import Model
 from process_results import process_results
 from f2 import func as f2_function
 from f3 import get_action as get_f3_action
+from f4 import get_action as get_f4_action
 from fn_context import FnContext
 from gpu_management.tensor_functions import TensorFunctionsManager
 from gpu_management.tests import all_tests as gpu_tests
-from hv_functions import UpperTensorFunctionsManager
+from hv_functions import UpperTensorFunctionsManager, get_functions_manager as get_upper_tensor_functions_manager
 from get_args import get_arg
 from utils import define_train_and_test_datasets, get_train_and_test_datasets, check_int
 from time_ import time_start
 from tudataset import get_dataset_info
-
-def distribute_rows(instance_name: str) -> Callable[[FnContext], None]:
-    def inner(ctx: FnContext) -> None:
-        root = ctx.fs
-        functions = ctx.functions
-        
-        root.config.model_dir = f"{instance_name}/model"
-        root.config.dist_file = f"{instance_name}/dist_file.json"
-        root.config.result_file = f"{instance_name}/result_file.json"
-        
-        root.setup()
-        
-        define_train_and_test_datasets(root.train_and_test_sets_distribution)
-    
-    return inner
+from distribute_rows import distribute_rows
+from test_model import test_model
 
 def train_model(instance_name: str) -> Callable[[FnContext], None]:
     def inner(ctx: FnContext) -> None:
@@ -58,79 +46,41 @@ def train_model(instance_name: str) -> Callable[[FnContext], None]:
         trained_model = Model.train(functions, train_proxies, root.model)
     
     return inner
-    
-def test_model(instance_name: str) -> Callable[[FnContext], None]:
-    def inner(ctx: FnContext) -> None:
-        root = ctx.fs
-        functions = ctx.functions
-        
-        root.config.model_dir = f"{instance_name}/model"
-        root.config.dist_file = f"{instance_name}/dist_file.json"
-        root.config.result_file = f"{instance_name}/result_file.json"
-        
-        timer = Timer("Get model from FS")
-        trained_model = Model.from_fs(root.model)
-        timer.end()
-        
-        timer = Timer("Get proxies and expected labels")
-        _, test_ids = tuple(get_train_and_test_datasets(root.train_and_test_sets_distribution))
-        test_proxies = tuple(proxies_from_fs(root, test_ids))
-        test_expected_labels = tuple(proxy.label for proxy in test_proxies)
-        timer.end()
-        
-        test_result_labels_mid = torch.empty(len(test_proxies), dtype=torch.int8)
-        mid_start = 0
-        step = 100
-        total_end = len(test_proxies)
-        while mid_start < total_end:
-            mid_end = min(mid_start + step, total_end)
-            mid_test_proxies = test_proxies[mid_start:mid_end]
-            timer0 = Timer(f"Handle test HVs: [{mid_start}; {mid_end}) of [0; {total_end})")
-            
-            timer = Timer("Create HV batch")
-            mid_test_data: torch.Tensor = proxies_to_batch(mid_test_proxies)
-            del mid_test_proxies
-            timer.end()
-            
-            timer = Timer("Predict test dataset graphs")
-            mid_test_result_labels_tensor: torch.Tensor = trained_model.test(functions, mid_test_data)
-            del mid_test_data
-            timer.end()
-            
-            test_result_labels_mid[mid_start:mid_end] = mid_test_result_labels_tensor
-            del mid_test_result_labels_tensor
-            
-            timer0.end()
-            mid_start = mid_end
-        
-        test_result_labels: tuple[int, ...] = tuple(check_int(x.item()) for x in test_result_labels_mid)
-        
-        with open(root.result_file, "w") as file:
-            json.dump({"ids": test_ids, "expected": test_expected_labels, "result": test_result_labels}, file)
-    
-    return inner
 
-encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
-def get_action(program_id: int, action_id: int) -> tuple[str, Callable[[FnContext], None]] | None:
+def graph_encoding_action(action_id: int) -> tuple[str, Callable[[FnContext], None]] | int:
     if action_id < 0:
         raise Exception(f"Invalid action_id: {action_id}")
     
-    if program_id == 1:
-        num_graphs = get_dataset_info().num_graphs
-        num_models = 10
-        
-        if action_id < 1:
-            return ("Setup", lambda ctx: ctx.fs.setup())
-        action_id -= 1
-        
-        if action_id < num_graphs:
-            g_id = action_id
-            return (f"Create HV {g_id+1} of {num_graphs}", lambda root: action_create_hv(g_id, root))
-        action_id -= num_graphs
+    num_graphs = get_dataset_info().num_graphs
+    
+    if action_id < 1:
+        return ("Setup", lambda ctx: ctx.fs.setup())
+    action_id -= 1
+    
+    if action_id < num_graphs:
+        g_id = action_id
+        return (f"Create HV {g_id+1} of {num_graphs}", lambda root: action_create_hv(g_id, root))
+    action_id -= num_graphs
+    
+    return action_id
+
+encode_singular_action_ids_re = re.compile("^encode-(\\d+)$")
+def get_action(program_id: str, action_id: int) -> tuple[str, Callable[[FnContext], None]] | None:
+    if action_id < 0:
+        raise Exception(f"Invalid action_id: {action_id}")
+    
+    if program_id == "FIRST":
+        v0 = graph_encoding_action(action_id)
+        if isinstance(v0, int):
+            action_id = v0
+        else:
+            return v0
         
         if action_id < 1:
             return ("Define ids to labels mapping", lambda ctx: define_ids_to_labels_mapping(ctx.fs.tudataset, ctx.fs.ids_to_labels))
         action_id -= 1
+        
+        num_models = 10
         
         if action_id < num_models * 3:
             counter = action_id
@@ -154,13 +104,25 @@ def get_action(program_id: int, action_id: int) -> tuple[str, Callable[[FnContex
         action_id -= 1
         
         return None
-    elif program_id == 2:
+    elif program_id == "CMP":
         if action_id < 1:
             return ("Compare several random HVs of all classes", f2_function)
         action_id -= 1
         return None
-    elif program_id == 3:
+    elif program_id == "GRAPH_HD":
         return get_f3_action(action_id)
+    elif program_id == "REFINE_HD":
+        v0 = graph_encoding_action(action_id)
+        if not isinstance(v0, int):
+            return v0
+        
+        return get_action("REFINE_HD_1", v0)
+    elif program_id == "REFINE_HD_1":
+        if action_id < 1:
+            return ("Define ids to labels mapping", lambda ctx: define_ids_to_labels_mapping(ctx.fs.tudataset, ctx.fs.ids_to_labels))
+        action_id -= 1
+        
+        return get_f4_action(action_id)
     else:
         raise ValueError("Unknown program id")
     
@@ -214,7 +176,7 @@ def default_program(mode: str) -> None:
         raise Exception("CUDA not available")
     
     root_dir = get_arg("ROOT_DIR", "Path")
-    program_id = get_arg("PROGRAM_ID", "int")
+    program_id = get_arg("PROGRAM_ID", "str")
     max_gpu_mem = get_arg("MAX_GPU_MEM", "int")
     
     start = get_arg("START", "int")
@@ -226,7 +188,7 @@ def default_program(mode: str) -> None:
     limiter = limiter_fn(start)
     
     with TensorFunctionsManager(max_gpu_mem) as lower_manager:
-        upper_manager = UpperTensorFunctionsManager(lower_manager)
+        upper_manager = get_upper_tensor_functions_manager(lower_manager)
         vars_timer.end()
         
         try:

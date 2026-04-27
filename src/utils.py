@@ -1,6 +1,6 @@
 import json
 from random import shuffle as random_shuffle
-from typing import TypeVar, Callable, Any, Sequence
+from typing import TypeVar, Callable, Any, Sequence, Iterable
 from pathlib import Path
 from math import sqrt
 from functools import reduce
@@ -170,4 +170,44 @@ class ContiguousTensor:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if not self.__is_copy:
             self.__original[...] = self.__contiguous
+
+def clamp(v: float, min: float | None, max: float | None) -> float:
+    if min is not None and v < min:
+        return min
+    elif max is not None and v > max:
+        return max
+    else:
+        return v
+
+# TODO: Use this function wherever possible
+def split_interval(start: int, end: int, size: int) -> Iterable[tuple[int, int]]:
+    while start < end:
+        mid_end = min(end, start + size)
+        yield (start, mid_end)
+        start = mid_end
+
+class AccAvg:
+    __sum: float
+    __num: int
+    __default: float
+    
+    def __init__(self, *, default: float) -> None:
+        self.__sum = 0
+        self.__num = 0
+        self.__default = default
+    
+    def add(self, el: float) -> None:
+        self.__sum += el
+        self.__num += 1
+    
+    def add_all(self, it: Iterable[float]) -> None:
+        elements = tuple(it)
+        self.__sum += sum(elements)
+        self.__num += len(elements)
+    
+    def get(self) -> float:
+        if self.__num <= 0:
+            return self.__default
+        
+        return self.__sum / self.__num
 

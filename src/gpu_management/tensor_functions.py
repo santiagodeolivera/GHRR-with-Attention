@@ -170,6 +170,9 @@ class TensorFunctionsManager:
     def addition(self, v1: torch.Tensor, v2: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
         return self.element_wise_binary_operation(v1, v2, lambda t1, t2, t3: torch.add(t1, t2, out=t3), out)
     
+    def weighted_addition(self, v1: torch.Tensor, v2: torch.Tensor, alpha: float, *, out: torch.Tensor | None = None) -> torch.Tensor:
+        return self.element_wise_binary_operation(v1, v2, lambda t1, t2, t3: torch.add(t1, t2, alpha=alpha, out=t3), out)
+    
     def summation(self, v1: torch.Tensor, unit_dims: int, *, out: torch.Tensor | None = None) -> torch.Tensor:
         data_type = DataType.get_by_dtype(v1.dtype)
         
