@@ -80,7 +80,7 @@ def get_action(program_id: str, action_id: int) -> tuple[str, Callable[[FnContex
             return ("Define ids to labels mapping", lambda ctx: define_ids_to_labels_mapping(ctx.fs.tudataset, ctx.fs.ids_to_labels))
         action_id -= 1
         
-        num_models = 10
+        num_models = get_arg("TRAIN_INSTANCES", "int")
         
         if action_id < num_models * 3:
             counter = action_id
@@ -100,7 +100,7 @@ def get_action(program_id: str, action_id: int) -> tuple[str, Callable[[FnContex
         
         if action_id < 1:
             return ("Aggregate model prediction results",
-                process_results((f"instances/{x}/result_file.json" for x in range(10)), "results.json"))
+                process_results((f"instances/{x}/result_file.json" for x in range(num_models)), "results.json"))
         action_id -= 1
         
         return None
@@ -178,6 +178,7 @@ def default_program(mode: str) -> None:
     root_dir = get_arg("ROOT_DIR", "Path")
     program_id = get_arg("PROGRAM_ID", "str")
     max_gpu_mem = get_arg("MAX_GPU_MEM", "int")
+    tudataset_dir = get_arg("TUDATASET_DIR", "Path").resolve()
     
     start = get_arg("START", "int")
     end: int | None = None
@@ -202,7 +203,9 @@ def default_program(mode: str) -> None:
                     break
                 action_name, action = action_data
                 
-                ctx = FnContext(fs = FsOrganizer(root_dir), functions = upper_manager)
+                fs = FsOrganizer(root_dir)
+                fs.config.tudataset_dir = tudataset_dir
+                ctx = FnContext(fs = fs, functions = upper_manager)
                 timer = Timer(f"Program {program_id}, action {action_id}: {action_name}")
                 
                 try:

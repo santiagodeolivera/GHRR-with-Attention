@@ -3,13 +3,13 @@ from pathlib import Path
 
 @dataclass
 class FsConfig:
-	base_dir: str
-	encodings_dir: str
-	tudataset_dir: str
-	model_dir: str
-	dist_file: str
-	ids_to_labels_file: str
-	result_file: str
+	base_dir: str | Path
+	encodings_dir: str | Path
+	tudataset_dir: str | Path
+	model_dir: str | Path
+	dist_file: str | Path
+	ids_to_labels_file: str | Path
+	result_file: str | Path
 	
 	@staticmethod
 	def default() -> "FsConfig":

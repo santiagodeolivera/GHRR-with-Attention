@@ -1,31 +1,23 @@
 # GHRR-with-Attention
 
-## Note
+## How to execute
 
-In order for the program to be executable, it's divided into several steps, each of which is done via executing the program with a different `ACTION_ID` parameter, which currently goes from 0 to 220 (inclusive).
+Execute `python GHRR-with-attention/src` with the following environment variables:
 
-## Executing a single step
-
-1. Make sure all requirements are installed (check the requirements.txt file).
-2. Set up the following environment variables:
-    * `PROGRAM_ID`: The ID of the program to be executed.
-    * `ACTION_ID`: The ID of the step to be executed.
-    * `ROOT_DIR`: The path to the root directory where the intermediate files will be stored.
-    * `MEM_HISTORY_OUT`: (Optional) The path to export the GPU memory history during the execution.
-    * `PROPORTION`: The proportion of rows of the original dataset to be used for training (the rest will be for testing). Only mandatory in certain steps, but recommended to be set beforehand.
-3. Execute python on the `src` directory.
-
-## Executing a range of steps
-
-It can only be done in Windows or Linux operating systems.
-
-1. Make sure all requirements are installed (check the requirements.txt file).
-2. Set up the following environment variables:
-    * `PROGRAM_ID`: The ID of the program to be executed.
-    * `START`: The ID of the first step to be executed.
-    * `END`: The ID of the last step to be executed.
-    * `ROOT_DIR`: The path to the root directory where the intermediate files will be stored.
-    * `MEM_HISTORY_DIR`: The path to the directory where the GPU memory history files will be stored. This time it's mandatory.
-    * `PROPORTION`: The proportion of rows of the original dataset to be used for training (the rest will be for testing). Only mandatory in certain steps, but recommended to be set beforehand.
-3. Execute the corresponding file (`start.cmd` if OS is Windows, `start.sh` if it's Linux).
-
+* `MODE`: The execution mode of the program (`RANGE` or `TIMED`)
+* `PROGRAM_ID`: The ID of the program to be executed
+* `START`: The first step to take
+* `END`: The last step to take (if `MODE=RANGE`)
+* `MINUTES`: How long the program can take at most (if `MODE=TIMED`)
+* `PROPORTION`: Proportion between the training set and the whole train-test dataset
+* `GRAPH_HD_ROOT`: The path to the GraphHD project, to compare it with GraphHD
+* `DATASET`: The ID of the TUDataset dataset
+* `DIMENSIONS`: The number of dimensions of the GHRR HVs
+* `MATRIX_SIZE`: The size of the matrix in the GHRR HVs
+* `MAX_GPU_MEM`: The amount of GPU memory the program can take (it always takes it all)
+* `POS_ENC_MODE`: The mode for positional encoding (1: traditional, 2: alternative)
+* `BUNDLING_MODE`: The mode for bundling (1: direct sum, 2: sum 1+1 and normalize)
+* `TRAIN_INSTANCES`: The number of models to train
+* `TRAIN_ITERATIONS`: The number of iterations to apply to each model (if `PROGRAM_ID` is `REFINE_HD` or `REFINE_HD_1`)
+* `ROOT_DIR`: The path to the output storage directory
+* `TUDATASET_DIR`: The path to the TUDataset storage directory

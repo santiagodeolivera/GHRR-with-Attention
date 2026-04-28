@@ -43,11 +43,22 @@ def clone_hv(src: torch.Tensor, path: Path) -> torch.Tensor:
     hv[...] = src
     return hv
 
-def normalize_and_similarity(functions: UpperTensorFunctionsManager, \
-    hv: torch.Tensor, class_hv: torch.Tensor, normalized_hv_space: torch.Tensor \
-) -> float:
-    normalized_class_hv = functions.lower.normalize(class_hv, out=normalized_hv_space)
-    return functions.normalized_similarity(hv, normalized_class_hv).item()
+match get_arg("BUNDLING_MODE", "int"):
+    case 1:
+    def normalize_and_similarity(functions: UpperTensorFunctionsManager, \
+        hv: torch.Tensor, class_hv: torch.Tensor, normalized_hv_space: torch.Tensor \
+    ) -> float:
+        normalized_class_hv = functions.lower.normalize(class_hv, out=normalized_hv_space)
+        return functions.normalized_similarity(hv, normalized_class_hv).item()
+    
+    case 2:
+    def normalize_and_similarity(functions: UpperTensorFunctionsManager, \
+        hv: torch.Tensor, class_hv: torch.Tensor, normalized_hv_space: torch.Tensor \
+    ) -> float:
+        return functions.normalized_similarity(hv, class_hv).item()
+    
+    case _:
+    raise Exception()
 
 # TODO: Refactor similar functions
 class Model:
@@ -89,14 +100,14 @@ class Model:
             similarity_to_label = normalize_and_similarity(functions, new_hv, class_hv, norm_class_hv_space)
             w: float = clamp(1 - prediction.top1 - prediction.top2, 0.0, 1.0)
             if prediction.label != label:
-                functions.lower.weighted_addition(class_hv, new_hv, (1 - similarity_to_label) * w, out=class_hv)
+                functions.sum_two_hvs(class_hv, new_hv, alpha=(1 - similarity_to_label) * w, out=class_hv)
                 
                 pred_class_hv = self.__classes[prediction.label]
-                functions.lower.weighted_addition(pred_class_hv, new_hv, (prediction.label_sim - 1) * w, out=pred_class_hv)
+                functions.sum_two_hvs(pred_class_hv, new_hv, alpha=(prediction.label_sim - 1) * w, out=pred_class_hv)
                 
                 error_calculator.add(similarity_to_label)
             elif prediction.label_sim <= error_calculator.get():
-                functions.lower.weighted_addition(class_hv, new_hv, w, out=class_hv)
+                functions.sum_two_hvs(class_hv, new_hv, alpha=w, out=class_hv)
             
             timer.end()
         

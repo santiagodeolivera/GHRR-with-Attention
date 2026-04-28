@@ -12,6 +12,7 @@ from distribute_rows import distribute_rows
 from test_model import test_model
 from time_ import Timer
 from process_results import process_results
+from get_args import get_arg
 
 def train_model(instance_id: int, id: int, src: int | None, *, msg: str | None = None) -> Callable[[FnContext], None]:
     def inner(ctx: FnContext) -> None:
@@ -40,8 +41,8 @@ def train_model(instance_id: int, id: int, src: int | None, *, msg: str | None =
     
     return inner
 
-max_instances = 8
-max_iterations = 3
+max_instances = get_arg("TRAIN_INSTANCES", "int")
+max_iterations = get_arg("TRAIN_ITERATIONS", "int")
 steps = max_iterations + 2
 def get_action(action_id: int) -> tuple[str, Callable[[FnContext], None]] | None:
     if action_id < max_instances * steps:
