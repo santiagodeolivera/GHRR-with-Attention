@@ -184,7 +184,7 @@ class UpperTensorFunctionsManager:
         del mid
         del v4
         
-        return result
+        return torch.nan_to_num(result, out=result)
 
 class Bundling2TensorFunctionsManager(UpperTensorFunctionsManager):
     def sum_hvs(self, hvs: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
@@ -311,24 +311,6 @@ class Bundling2TensorFunctionsManager(UpperTensorFunctionsManager):
         del v5
         
         return v6
-    
-    def normalized_similarity(self, a: torch.Tensor, b: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
-        mid = self.unnormalized_similarity(a, b)
-        v1 = self.unnormalized_similarity(a, a)
-        v2 = self.unnormalized_similarity(b, b)
-        
-        v3 = self.lower.elem_mult(v1, v2)
-        del v1
-        del v2
-        
-        v4 = self.lower.sqrt(v3)
-        del v3
-        
-        result = self.lower.elem_div(mid, v4, out=out)
-        del mid
-        del v4
-        
-        return result
 
 def get_functions_manager(lower: TensorFunctionsManager) -> UpperTensorFunctionsManager:
     bundling_mode = get_arg("BUNDLING_MODE", "int")

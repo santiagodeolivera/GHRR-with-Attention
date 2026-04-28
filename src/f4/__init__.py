@@ -22,10 +22,9 @@ def train_model(instance_id: int, id: int, src: int | None, *, msg: str | None =
         fs.config.result_file = f"instances/{instance_id}/result_file.json"
         fs.setup()
         
-        classes: Iterable[int] = get_dataset_info().label_num.keys()
-        
         model: Model
         if src is None:
+            classes: Iterable[int] = get_dataset_info().label_num.keys()
             model = Model.new_empty(fs.model, classes)
         else:
             prev_model: Model = Model.from_fs(fs.root / f"instances/{instance_id}/models/{src}")

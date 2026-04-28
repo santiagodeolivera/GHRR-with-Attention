@@ -1,3 +1,4 @@
+import math
 from typing import Callable, Any
 
 import torch
@@ -267,8 +268,15 @@ class TensorFunctionsManager:
     def divide_by_scalar(self, v1: torch.Tensor, divisor: float, *, out: torch.Tensor | None = None) -> torch.Tensor:
         return self.element_wise_unary_operation(v1, lambda t1, t2: torch.div(t1, divisor, out=t2), out)
     
-    def normalize(self, v1: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
+    def normalize(self, v1: torch.Tensor, *, out: torch.Tensor | None = None, calc_on_norm_0: bool = True) -> torch.Tensor:
         norm = self.get_norm(v1)
+        if (not calc_on_norm_0) and math.isclose(norm, 0.0):
+            if out is None:
+                return torch.clone(v1)
+            else:
+                out[...] = v1
+                return out
+        
         return self.divide_by_scalar(v1, norm, out=out)
     
     def adjoint(self, t1: torch.Tensor, *, out: torch.Tensor | None = None) -> torch.Tensor:
