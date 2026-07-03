@@ -40,8 +40,6 @@ def get_dataset_template(name: str) -> DatasetTemplate:
     sections = name.split(".")
     
     dataset_name = sections[0]
-    if dataset_name not in ("MUTAG", "ENZYMES", "PTC_FM", "AIDS", "Letter-low", "Letter-med", "Letter-high"):
-        raise Exception(f"Invalid TUDataset dataset name: {dataset_name}")
     
     pruning_flags: list[PruningMode] = []
     max_num_nodes: int | None = None
