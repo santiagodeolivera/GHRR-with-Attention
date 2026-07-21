@@ -10,7 +10,7 @@ Execute `python GHRR-with-attention/src` with the following environment variable
 * `END`: The last step to take (if `MODE=RANGE`)
 * `MINUTES`: How long the program can take at most (if `MODE=TIMED`)
 * `PROPORTION`: Proportion between the training set and the whole train-test dataset
-* `GRAPH_HD_ROOT`: The path to the GraphHD project, to compare it with GraphHD
+* `GRAPH_HD_ROOT`: The path to the GraphHD project, to compare it with GraphHD (it has to be the modified version in https://github.com/santiagodeolivera/CLEI-2025--for-GHRR-with-attention)
 * `DATASET`: The ID of the TUDataset dataset
 * `DIMENSIONS`: The number of dimensions of the GHRR HVs
 * `MATRIX_SIZE`: The size of the matrix in the GHRR HVs
